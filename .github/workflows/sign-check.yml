@@ -1,0 +1,41 @@
+name: Sign check
+
+# Manually triggered pre-flight: build a signed + notarized macOS app with
+# the repository's APPLE_* secrets and verify it, without publishing
+# anything. Use before cutting a release after changing signing config or
+# rotating certificates.
+on:
+  workflow_dispatch:
+
+jobs:
+  sign-check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Import the Developer ID certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      - run: npm ci
+      - run: npm run package
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Verify signature, notarization, and Gatekeeper assessment
+        run: |
+          APP="out/Olorin Companion-darwin-arm64/Olorin Companion.app"
+          echo "--- codesign verify ---"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          echo "--- signing details ---"
+          codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority|TeamIdentifier|flags"
+          echo "--- notarization staple ---"
+          xcrun stapler validate "$APP"
+          echo "--- Gatekeeper assessment ---"
+          spctl --assess --type execute --verbose=2 "$APP"
+          echo "ALL SIGNING CHECKS PASSED"
