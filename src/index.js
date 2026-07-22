@@ -27,10 +27,11 @@ const logger = {
   error: (...args) => log.error(...args),
 };
 
-// Auto-update from GitHub Releases. Windows only until macOS builds are
-// signed (unsigned apps cannot use the macOS auto-updater). An updater
-// problem must never take the app down — printing is the job.
-if (app.isPackaged && process.platform === "win32") {
+// Auto-update from GitHub Releases on Windows and macOS (macOS requires the
+// signed, notarized builds shipped since 2.0.1 and the app living in
+// /Applications). An updater problem must never take the app down —
+// printing is the job.
+if (app.isPackaged && (process.platform === "win32" || process.platform === "darwin")) {
   try {
     updateElectronApp({ logger: log });
   } catch (error) {

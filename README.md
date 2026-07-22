@@ -35,8 +35,8 @@ row has a Drawer button that opens a cash drawer connected to that printer
 (standard ESC/POS kick; web pages can trigger the same via a
 `data-action="cash-drawer"` button — see the extension docs).
 
-On Windows the app updates itself automatically from published GitHub
-releases.
+On Windows and macOS the app updates itself automatically from published
+GitHub releases (on macOS, keep the app in /Applications).
 
 ## How printing works
 

@@ -1,7 +1,7 @@
 {
   "name": "olorin_companion",
   "productName": "Olorin Companion",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Olorin Companion Application",
   "main": "src/index.js",
   "repository": {
