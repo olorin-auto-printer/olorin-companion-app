@@ -32,25 +32,22 @@ jobs:
           New-Item -ItemType Directory -Force -Path C:\smoke | Out-Null
           Add-PrinterPort -Name "C:\smoke\out.pdf"
           Set-Printer -Name "Microsoft Print to PDF" -PortName "C:\smoke\out.pdf"
-      - name: Launch the packaged app
-        run: Start-Process -FilePath "out\Olorin Companion-win32-x64\Olorin Companion.exe" -RedirectStandardOutput C:\smoke\app.log -RedirectStandardError C:\smoke\app-err.log
-      - name: Wait for the app port (diagnostics)
-        continue-on-error: true
+      # The app must be launched, exercised, and stopped in ONE step: the
+      # Windows runner wraps each step in a job object and kills processes
+      # started by the step when it ends, so an app launched in its own step
+      # is dead before the next step runs.
+      - name: Launch the app and run the smoke test
         run: |
-          foreach ($i in 1..90) {
-            $open = (Test-NetConnection -ComputerName 127.0.0.1 -Port 9696 -WarningAction SilentlyContinue).TcpTestSucceeded
-            Write-Host "$(Get-Date -Format o) attempt ${i}: port open = $open"
-            if ($open) { break }
-            Start-Sleep -Seconds 2
+          $proc = Start-Process -FilePath "out\Olorin Companion-win32-x64\Olorin Companion.exe" -PassThru -RedirectStandardOutput C:\smoke\app.log -RedirectStandardError C:\smoke\app-err.log
+          try {
+            node scripts/smoke-test.mjs --printer "Microsoft Print to PDF" --output "C:\smoke\out.pdf"
+            $code = $LASTEXITCODE
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           }
-          netstat -ano | Select-String 9696
-          Get-Process | Where-Object { $_.ProcessName -like "*lorin*" } | Format-Table Id,ProcessName,StartTime
+          Write-Host "--- app.log ---"
           Get-Content C:\smoke\app.log -ErrorAction SilentlyContinue
-      - name: Run smoke test
-        run: node scripts/smoke-test.mjs --printer "Microsoft Print to PDF" --output "C:\smoke\out.pdf"
-      - name: Stop the app
-        if: always()
-        run: Stop-Process -Name "Olorin Companion" -Force -ErrorAction SilentlyContinue
+          exit $code
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
