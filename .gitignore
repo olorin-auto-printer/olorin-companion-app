@@ -6,6 +6,7 @@
 # Node artifact files
 node_modules/
 dist/
+out/
 
 # Compiled Java class files
 *.class
@@ -39,6 +40,9 @@ Thumbs.db
 *.app
 *.exe
 *.war
+
+# The vendored SumatraPDF binary used for Windows printing must be committed
+!resources/win32/SumatraPDF.exe
 
 # Large media files
 *.mp4
