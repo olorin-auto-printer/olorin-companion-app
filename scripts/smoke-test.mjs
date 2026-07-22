@@ -44,7 +44,9 @@ function request(message, { timeoutMs = 30000 } = {}) {
   });
 }
 
-async function waitForServer(attempts = 60) {
+// First launch of the unsigned packaged app can be slow on Windows CI
+// (Defender scans the exe), so the wait is generous.
+async function waitForServer(attempts = 150) {
   for (let i = 0; i < attempts; i++) {
     try {
       await request({ id: "printerList", text: "list-printer" }, { timeoutMs: 5000 });

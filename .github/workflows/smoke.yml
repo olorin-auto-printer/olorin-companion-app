@@ -7,7 +7,8 @@ name: Smoke test
 # - Windows: "Microsoft Print to PDF" redirected to a local file port —
 #   exercises the vendored SumatraPDF, including the asar-unpacked exe path.
 # - Linux:   cups-pdf virtual printer — exercises the CUPS lp backend.
-# - macOS:   raw CUPS queue with a file: device — exercises lp spooling.
+# - macOS:   ippeveprinter IPP Everywhere queue saving jobs to a directory
+#   (raw file: queues are no longer supported on macOS).
 
 on:
   push:
@@ -86,12 +87,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - name: Create a raw CUPS queue writing to a file
+      - name: Create an IPP Everywhere test printer saving jobs to a directory
         run: |
-          sudo sh -c 'echo "FileDevice Yes" >> /etc/cups/cups-files.conf'
-          sudo launchctl kickstart -k system/org.cups.cupsd
-          sleep 2
-          sudo lpadmin -p SmokePrinter -E -v "file:///tmp/smoke-out.pdf" -m raw
+          mkdir -p /tmp/smoke-spool
+          IPPEVE=$(command -v ippeveprinter || echo /usr/sbin/ippeveprinter)
+          nohup "$IPPEVE" -d /tmp/smoke-spool -k -p 8631 SmokePrinter > /tmp/ippeve.log 2>&1 &
+          sleep 3
+          sudo lpadmin -p SmokePrinter -E -v "ipp://127.0.0.1:8631/ipp/print" -m everywhere
           lpstat -p
       - run: npm ci
       - run: npm run package
@@ -100,7 +102,7 @@ jobs:
       - name: Launch the packaged app
         run: nohup "out/Olorin Companion-darwin-arm64/Olorin Companion.app/Contents/MacOS/Olorin Companion" > /tmp/app.log 2>&1 &
       - name: Run smoke test
-        run: node scripts/smoke-test.mjs --printer "SmokePrinter" --output "/tmp/smoke-out.pdf"
+        run: node scripts/smoke-test.mjs --printer "SmokePrinter" --output "/tmp/smoke-spool/*"
       - name: Stop the app
         if: always()
         run: pkill -f "Olorin Companion" || true
