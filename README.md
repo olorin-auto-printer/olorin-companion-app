@@ -1,81 +1,71 @@
 # Olorin Companion App
 
-This companion app, once installed on a computer, will work with a browser plugin to enable automatic printing and, if configured, printer selection based on the notice content. 
+A small Electron tray app that gives the Olorin browser extension the
+ability to print silently. It listens on a local WebSocket
+(`ws://127.0.0.1:9696`), receives slip HTML from the extension, renders it
+to PDF, and sends it to the right printer — receipts, stickers, labels, or
+full sheets — based on the printer mappings saved from the extension's
+settings page.
 
-The companion app installation files for Windows, Mac, and Linux can be found on the [release page](https://github.com/bywatersolutions/olorin-companion-app/releases)
+Works on Windows, macOS, and Linux. Installation files are on the
+[release page](https://github.com/olorin-auto-printer/olorin-companion-app/releases).
 
-The plugins for firefox and chrome each have their own repository and the files are on the release pages for those repositories
-- [Chrome plugin](https://github.com/bywatersolutions/olorin-browser-plugin-chrome/releases)
-- [Firefox plugin](https://github.com/bywatersolutions/olorin-browser-plugin-firefox/releases)
+The browser extension (one shared codebase for Chrome and Firefox) lives in
+the `olorin-browser-extension` repository.
 
-Use the corresponding file for the browser that will be used.
+## Setup
 
-Download and install the Companion app, and download the zip file for desired browser plugin from above, then continue
+1. Install the companion app and set it to run at login. The app lives in
+   the system tray; closing the window just hides it.
+2. Install the Olorin browser extension and use its Settings page to map
+   each logical printer (receipt, sticker, paper, full sheet, label) to a
+   real printer. Settings are stored by the companion app in
+   `olorin_options.json`, so all browsers on the machine share them.
+3. See the extension README for the Koha side (print buttons in notice
+   templates and the `IntranetSlipPrinterJS` system preference).
 
-## Set Up on Computer
-For the Companion App, download the file above, unzip, and run from the folder, or add to your programs as usual.  
-Once the Olorin Companion file has been added to the computer that will be used, open Olorin Companion, set it to run on log in. 
+## How printing works
 
-### Chrome extension
-In Chrome, click the settings (three dots), select Extensions->Manage Extensions  
-Drag the Olorin-chrome zip you donwloaded to the Chrome Extension page.
+- Slip HTML is rendered in a hidden, sandboxed window (JavaScript disabled)
+  and converted to PDF with Electron's `printToPDF`. Page sizes and margins
+  are in inches.
+- **Windows**: the PDF is printed by the bundled
+  [SumatraPDF](https://www.sumatrapdfreader.org/) (`resources/win32/`), a
+  GPLv3 program invoked as a separate process — see
+  `THIRD_PARTY_LICENSES.md`.
+- **macOS / Linux**: the PDF is printed with the CUPS `lp` command (the
+  Linux packages depend on `cups-client`).
+- Printer enumeration uses Electron's `getPrintersAsync` — the app has no
+  native/compiled dependencies.
 
-### Firefox extension
-In Firefox, navigate to the Add-ons Manager
- - through the menu (Tools->Add-ons)
- - by typing about:addons in the address bar).
+The WebSocket protocol, including backward compatibility with the 1.x
+extensions, is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
-In the Add-ons Manager, click the gear icon (settings) and select "Install Add-on from file...".  
-Finally, browse to the saved file and select it to install the extension
+## Configuration
 
-### Continue
+- `olorin_options.json` — created in the app's user data directory on first
+  save; several legacy locations are also searched (see
+  [docs/PROTOCOL.md](docs/PROTOCOL.md)).
+- `OLORIN_CONFIG_FILE` — environment variable forcing a specific options
+  file path.
+- `OLORIN_PORT` — override the WebSocket port (default 9696).
+- `allowed_origins` — optional array in `olorin_options.json` restricting
+  which web page origins may talk to the app.
 
-Once the extension and Olorin companion app has been installed onto the computer, click the extension (toolbar) that has been installed- you should get a message  
-success - connected.
+## Development
 
-The next step will be to set up the printers that will be used by this computer. Go to the settings with Olorin.
+Requires Node 24+ (see `.nvmrc`).
 
-A new browser pane will open and show the types of printing that can be setup:
- - Receipt printer
- - Sticker printer
- - Pager Printer
- - Full Sheet Printer
-
-Click each one of these to the appropriate printer for printing to. 
-
-Save
-
-
-## Koha Set Up
-
-In the notices, we need to add some text to tell Koha which notice would go to which printer, for example:
- - Issue Slip
- - Issue Quick Slip
-
-Would probably go to the “receipt printer’
-
-To do this, we will add some text at the bottom of each slip that needs to be connected to this printer plugin. 
-
-For example:
-```html
-<button id= “webPrint” data-printer=“receipt_printer” data-print= ‘#receipt”>Print</button>
+```sh
+npm install
+npm start           # run the app
+npm test            # vitest unit + integration tests
+npm run lint        # eslint + prettier
+npm run make        # build platform packages into out/make/
+npm run fetch-sumatra  # re-download + verify the vendored SumatraPDF (upgrades only)
 ```
 
-This code is saying use, web print, use the printer indicated within the quotes after data-printer, and then print all the text within the receipt. You must use the name of the printer from the Olorin settings.
+## License
 
-Additionally, some code will be added to the notice to indicate what should print and disregard all the other text that we don’t want to print. 
-
-Add this to the starting point of the actually slip you want to print:
-```html
-<span id=“receipt”>
-```
-
-And then add this to the end of what you are looking to print
-```html
-</span>
-```
-
-Lastly, to have this all go automatically, we will need to add some javascript in the system preference: IntranetSlipPrinterJS:
-```javascript
-set timeout (function () {$(#webPrint”), trigger (‘click) ; } 1000) ;
-```
+MIT. The bundled SumatraPDF binary is GPLv3 — see
+`THIRD_PARTY_LICENSES.md`.
