@@ -49,6 +49,8 @@ module.exports = {
       name: "@electron-forge/maker-deb",
       config: {
         options: {
+          // The packaged binary is named after productName, not name
+          bin: "Olorin Companion",
           icon: path.join(__dirname, "src", "icon.png"),
           depends: ["cups-client"],
         },
@@ -58,6 +60,7 @@ module.exports = {
       name: "@electron-forge/maker-rpm",
       config: {
         options: {
+          bin: "Olorin Companion",
           requires: ["cups-client"],
         },
       },

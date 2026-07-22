@@ -34,6 +34,18 @@ jobs:
           Set-Printer -Name "Microsoft Print to PDF" -PortName "C:\smoke\out.pdf"
       - name: Launch the packaged app
         run: Start-Process -FilePath "out\Olorin Companion-win32-x64\Olorin Companion.exe" -RedirectStandardOutput C:\smoke\app.log -RedirectStandardError C:\smoke\app-err.log
+      - name: Wait for the app port (diagnostics)
+        continue-on-error: true
+        run: |
+          foreach ($i in 1..90) {
+            $open = (Test-NetConnection -ComputerName 127.0.0.1 -Port 9696 -WarningAction SilentlyContinue).TcpTestSucceeded
+            Write-Host "$(Get-Date -Format o) attempt ${i}: port open = $open"
+            if ($open) { break }
+            Start-Sleep -Seconds 2
+          }
+          netstat -ano | Select-String 9696
+          Get-Process | Where-Object { $_.ProcessName -like "*lorin*" } | Format-Table Id,ProcessName,StartTime
+          Get-Content C:\smoke\app.log -ErrorAction SilentlyContinue
       - name: Run smoke test
         run: node scripts/smoke-test.mjs --printer "Microsoft Print to PDF" --output "C:\smoke\out.pdf"
       - name: Stop the app

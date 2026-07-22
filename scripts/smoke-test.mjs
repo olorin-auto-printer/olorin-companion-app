@@ -51,7 +51,10 @@ async function waitForServer(attempts = 150) {
     try {
       await request({ id: "printerList", text: "list-printer" }, { timeoutMs: 5000 });
       return;
-    } catch {
+    } catch (error) {
+      if (i % 15 === 0) {
+        console.log(`  attempt ${i + 1}: ${error.message}`);
+      }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
