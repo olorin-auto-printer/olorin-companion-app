@@ -55,6 +55,38 @@ jobs:
           name: smoke-windows-logs
           path: C:\smoke\*.log
 
+  # Same end-to-end print, but through the actual Squirrel installer instead
+  # of the bare packaged directory — validates the installer, the
+  # electron-squirrel-startup handling, and the installed app's layout.
+  smoke-windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run make -- --targets @electron-forge/maker-squirrel
+      - name: Redirect "Microsoft Print to PDF" to a file port
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\smoke | Out-Null
+          Add-PrinterPort -Name "C:\smoke\out.pdf"
+          Set-Printer -Name "Microsoft Print to PDF" -PortName "C:\smoke\out.pdf"
+      - name: Install with the Squirrel setup and run the smoke test
+        run: |
+          $setup = Get-ChildItem "out\make\squirrel.windows\x64\*Setup.exe" | Select-Object -First 1
+          Write-Host "Installing $($setup.FullName)"
+          Start-Process -FilePath $setup.FullName -Wait
+          try {
+            node scripts/smoke-test.mjs --printer "Microsoft Print to PDF" --output "C:\smoke\out.pdf"
+            $code = $LASTEXITCODE
+          } finally {
+            Stop-Process -Name "Olorin Companion" -Force -ErrorAction SilentlyContinue
+          }
+          Get-ChildItem "$env:LOCALAPPDATA\olorin_companion" -ErrorAction SilentlyContinue
+          exit $code
+
   smoke-linux:
     runs-on: ubuntu-latest
     steps:
