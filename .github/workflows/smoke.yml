@@ -1,0 +1,109 @@
+name: Smoke test
+
+# End-to-end print smoke test on every OS: package the real app, create a
+# virtual printer whose output lands in a file, drive the WebSocket protocol
+# with scripts/smoke-test.mjs, and assert a print actually came out.
+#
+# - Windows: "Microsoft Print to PDF" redirected to a local file port —
+#   exercises the vendored SumatraPDF, including the asar-unpacked exe path.
+# - Linux:   cups-pdf virtual printer — exercises the CUPS lp backend.
+# - macOS:   raw CUPS queue with a file: device — exercises lp spooling.
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  smoke-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run package
+      - name: List package output
+        run: Get-ChildItem out
+      - name: Redirect "Microsoft Print to PDF" to a file port
+        run: |
+          New-Item -ItemType Directory -Force -Path C:\smoke | Out-Null
+          Add-PrinterPort -Name "C:\smoke\out.pdf"
+          Set-Printer -Name "Microsoft Print to PDF" -PortName "C:\smoke\out.pdf"
+      - name: Launch the packaged app
+        run: Start-Process -FilePath "out\Olorin Companion-win32-x64\Olorin Companion.exe" -RedirectStandardOutput C:\smoke\app.log -RedirectStandardError C:\smoke\app-err.log
+      - name: Run smoke test
+        run: node scripts/smoke-test.mjs --printer "Microsoft Print to PDF" --output "C:\smoke\out.pdf"
+      - name: Stop the app
+        if: always()
+        run: Stop-Process -Name "Olorin Companion" -Force -ErrorAction SilentlyContinue
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-windows-logs
+          path: C:\smoke\*.log
+
+  smoke-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install CUPS and the cups-pdf virtual printer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cups cups-client printer-driver-cups-pdf xvfb
+          sudo systemctl restart cups
+          # Wait for the auto-created PDF queue
+          for i in $(seq 1 30); do lpstat -p PDF > /dev/null 2>&1 && break; sleep 1; done
+          lpstat -p
+      - run: npm ci
+      - run: npm run package
+      - name: List package output
+        run: ls out
+      - name: Launch the packaged app
+        run: |
+          export ELECTRON_DISABLE_SANDBOX=1
+          nohup xvfb-run --auto-servernum "out/Olorin Companion-linux-x64/Olorin Companion" > /tmp/app.log 2>&1 &
+      - name: Run smoke test
+        run: node scripts/smoke-test.mjs --printer "PDF" --output "$HOME/PDF/*.pdf"
+      - name: Stop the app
+        if: always()
+        run: pkill -f "Olorin Companion" || true
+      - name: Show app log on failure
+        if: failure()
+        run: cat /tmp/app.log || true
+
+  smoke-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Create a raw CUPS queue writing to a file
+        run: |
+          sudo sh -c 'echo "FileDevice Yes" >> /etc/cups/cups-files.conf'
+          sudo launchctl kickstart -k system/org.cups.cupsd
+          sleep 2
+          sudo lpadmin -p SmokePrinter -E -v "file:///tmp/smoke-out.pdf" -m raw
+          lpstat -p
+      - run: npm ci
+      - run: npm run package
+      - name: List package output
+        run: ls out
+      - name: Launch the packaged app
+        run: nohup "out/Olorin Companion-darwin-arm64/Olorin Companion.app/Contents/MacOS/Olorin Companion" > /tmp/app.log 2>&1 &
+      - name: Run smoke test
+        run: node scripts/smoke-test.mjs --printer "SmokePrinter" --output "/tmp/smoke-out.pdf"
+      - name: Stop the app
+        if: always()
+        run: pkill -f "Olorin Companion" || true
+      - name: Show app log on failure
+        if: failure()
+        run: cat /tmp/app.log || true
