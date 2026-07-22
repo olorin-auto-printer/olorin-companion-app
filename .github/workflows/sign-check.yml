@@ -13,7 +13,7 @@ jobs:
     env:
       HAS_AZURE_SIGNING: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -55,7 +55,7 @@ jobs:
   sign-check-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
