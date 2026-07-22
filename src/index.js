@@ -1,9 +1,12 @@
-const { app, BrowserWindow, Menu, dialog } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
 const path = require("path");
+const log = require("electron-log/main");
+const { updateElectronApp } = require("update-electron-app");
 
+const { version } = require("../package.json");
 const { createOptionsStore } = require("./options-store");
 const { createRouter } = require("./router");
-const { startServer, isOriginAllowed } = require("./server");
+const { startServer, isOriginAllowed, DEFAULT_PORT } = require("./server");
 const { createPrintPipeline } = require("./print-pipeline");
 const { createRenderToPdf } = require("./render-to-pdf");
 const { createBackend, createPrinterLister } = require("./printing");
@@ -15,6 +18,19 @@ const { notify } = require("./notify");
 // Handle Squirrel install/update/uninstall events on Windows.
 if (require("electron-squirrel-startup")) {
   app.quit();
+}
+
+log.initialize();
+const logger = {
+  log: (...args) => log.info(...args),
+  warn: (...args) => log.warn(...args),
+  error: (...args) => log.error(...args),
+};
+
+// Auto-update from GitHub Releases. Windows only until macOS builds are
+// signed (unsigned apps cannot use the macOS auto-updater).
+if (app.isPackaged && process.platform === "win32") {
+  updateElectronApp({ logger: log });
 }
 
 let mainWindow;
@@ -39,6 +55,16 @@ function getPrinterQueryWindow() {
     return { window: mainWindow, temporary: false };
   }
   return { window: new BrowserWindow({ show: false }), temporary: true };
+}
+
+function testSlipHtml(printerKey) {
+  return (
+    "<html><body style='font-family: sans-serif'>" +
+    "<h2 style='margin: 0'>Olorin test print</h2>" +
+    `<p style='margin: 4px 0'>Printer: ${printerKey}</p>` +
+    `<p style='margin: 4px 0'>Time: ${new Date().toLocaleString()}</p>` +
+    "</body></html>"
+  );
 }
 
 async function initialize() {
@@ -68,6 +94,7 @@ async function initialize() {
       userData: app.getPath("userData"),
       sessionData: app.getPath("sessionData"),
     },
+    logger,
   });
 
   const listPrinters = createPrinterLister({ getWindow: getPrinterQueryWindow });
@@ -89,19 +116,71 @@ async function initialize() {
     backend,
     tempDir: app.getPath("temp"),
     notify,
+    onJob: (job) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("olorin:job", job);
+      }
+    },
+    logger,
   });
 
   const router = createRouter({
     optionsStore,
     listPrinters,
     executePrint: (message) => pipeline.print(message),
+    executeKick: (message) => pipeline.kickDrawer(message),
+    version,
+    logger,
+  });
+
+  let serverPort = null;
+
+  // IPC for the app's own window (settings editor, test prints, job log).
+  // Unlike the WebSocket, this surface may edit allowed_origins.
+  ipcMain.handle("olorin:get-status", () => ({
+    version,
+    port: serverPort,
+    running: serverPort !== null,
+    optionsPath: optionsStore.resolvePath(),
+    platform: process.platform,
+  }));
+  ipcMain.handle("olorin:list-printers", () => listPrinters());
+  ipcMain.handle("olorin:get-options", () => optionsStore.load());
+  ipcMain.handle("olorin:set-options", (event, options) => {
+    if (!options || typeof options !== "object") {
+      throw new Error("Options must be an object");
+    }
+    optionsStore.save(options);
+    return { success: true };
+  });
+  ipcMain.handle("olorin:get-recent-jobs", () => pipeline.getRecentJobs());
+  ipcMain.handle("olorin:test-print", async (event, printerKey) => {
+    try {
+      const result = await pipeline.print({
+        content: testSlipHtml(printerKey),
+        printer: printerKey,
+      });
+      return { success: true, printer: result.printer };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("olorin:kick-drawer", async (event, printerKey) => {
+    try {
+      const result = await pipeline.kickDrawer({ printer: printerKey });
+      return { success: true, printer: result.printer };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
   });
 
   try {
-    await startServer({
+    const server = await startServer({
       route: router.route,
       isOriginAllowed: (origin) => isOriginAllowed(origin, optionsStore.load().allowed_origins),
+      logger,
     });
+    serverPort = server.port;
   } catch (error) {
     dialog.showErrorBox(
       "Olorin Companion",
@@ -139,3 +218,5 @@ if (!gotSingleInstanceLock) {
     }
   });
 }
+
+module.exports = { DEFAULT_PORT };

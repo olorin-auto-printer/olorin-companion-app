@@ -19,10 +19,12 @@
     "fetch-sumatra": "node scripts/fetch-sumatra.mjs"
   },
   "keywords": [],
-  "author": "binaryfolks",
+  "author": "Kyle M Hall",
   "license": "MIT",
   "dependencies": {
+    "electron-log": "^5.4.4",
     "electron-squirrel-startup": "^1.0.1",
+    "update-electron-app": "^3.3.0",
     "ws": "^8.21.1"
   },
   "devDependencies": {
@@ -30,8 +32,10 @@
     "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-rpm": "^7.11.2",
     "@electron-forge/maker-squirrel": "^7.11.2",
+    "@electron-forge/maker-wix": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
     "@electron-forge/plugin-fuses": "^7.11.2",
+    "@electron-forge/publisher-github": "^7.11.2",
     "@electron/fuses": "^1.8.0",
     "@eslint/js": "^10.0.1",
     "electron": "43.2.0",
