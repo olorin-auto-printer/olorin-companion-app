@@ -13,6 +13,10 @@ permissions:
 
 jobs:
   publish:
+    env:
+      # The secrets context is unavailable in step-level if conditions, so
+      # the presence check is precomputed here
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_P12 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -31,7 +35,7 @@ jobs:
       # APPLE_* secrets exist (see README "Signing and releases"); without
       # them the build stays unsigned exactly as before.
       - name: Import the Developer ID certificate
-        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
+        if: runner.os == 'macOS' && env.HAS_APPLE_CERT == 'true'
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
