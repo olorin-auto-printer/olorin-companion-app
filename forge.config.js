@@ -73,6 +73,9 @@ module.exports = {
         ui: {
           chooseDirectory: true,
         },
+        ...(process.env.SQUIRREL_SIGN_PARAMS
+          ? { signWithParams: process.env.SQUIRREL_SIGN_PARAMS }
+          : {}),
       },
     },
     {

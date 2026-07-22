@@ -105,8 +105,22 @@ release workflow when available):
   first notarized release ships, macOS auto-update can be enabled in
   `src/index.js`.
 
-- **Windows**: `SQUIRREL_SIGN_PARAMS` — the signtool parameter string
-  (certificate or Azure Trusted Signing invocation).
+- **Windows** (Azure Trusted Signing; six repository secrets):
+  - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` — an Entra
+    app registration holding the "Trusted Signing Certificate Profile
+    Signer" role on the signing account
+  - `TRUSTED_SIGNING_ENDPOINT` — the regional endpoint, e.g.
+    https://eus.codesigning.azure.net
+  - `TRUSTED_SIGNING_ACCOUNT` / `TRUSTED_SIGNING_PROFILE` — the Trusted
+    Signing account and certificate profile names
+
+  The release workflow installs the Trusted Signing client and signs the
+  Squirrel installer, the app executable, and the MSI via signtool.
+
+Run the "Sign check" workflow (Actions tab → Sign check → Run workflow)
+after changing signing configuration or rotating credentials — it builds
+and verifies signed artifacts on both platforms without publishing
+anything.
 
 Troubleshooting: the app writes a log via electron-log (on macOS
 `~/Library/Logs/olorin_companion/main.log`; on Windows

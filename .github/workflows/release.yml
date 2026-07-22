@@ -15,8 +15,9 @@ jobs:
   publish:
     env:
       # The secrets context is unavailable in step-level if conditions, so
-      # the presence check is precomputed here
+      # the presence checks are precomputed here
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_P12 != '' }}
+      HAS_AZURE_SIGNING: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -40,6 +41,23 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      - name: Set up Azure Trusted Signing
+        if: runner.os == 'Windows' && env.HAS_AZURE_SIGNING == 'true'
+        shell: pwsh
+        run: |
+          nuget install Microsoft.Trusted.Signing.Client -OutputDirectory "$env:RUNNER_TEMP\tsc" -ExcludeVersion
+          $dlib = "$env:RUNNER_TEMP\tsc\Microsoft.Trusted.Signing.Client\bin\x64\Azure.CodeSigning.Dlib.dll"
+          $metadata = "$env:RUNNER_TEMP\tsc\metadata.json"
+          @{
+            Endpoint = "${{ secrets.TRUSTED_SIGNING_ENDPOINT }}"
+            CodeSigningAccountName = "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}"
+            CertificateProfileName = "${{ secrets.TRUSTED_SIGNING_PROFILE }}"
+          } | ConvertTo-Json | Set-Content $metadata
+          # Use the Windows SDK signtool (supports /dlib) rather than any vendored copy
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          "SIGNTOOL_PATH=$($signtool.FullName)" | Out-File -Append $env:GITHUB_ENV
+          "SQUIRREL_SIGN_PARAMS=/v /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 /dlib `"$dlib`" /dmdf `"$metadata`"" | Out-File -Append $env:GITHUB_ENV
       - run: npm ci
       - run: npm run publish
         env:
@@ -47,4 +65,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          SQUIRREL_SIGN_PARAMS: ${{ secrets.SQUIRREL_SIGN_PARAMS }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}

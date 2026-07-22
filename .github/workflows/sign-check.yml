@@ -8,7 +8,51 @@ on:
   workflow_dispatch:
 
 jobs:
-  sign-check:
+  sign-check-windows:
+    runs-on: windows-latest
+    env:
+      HAS_AZURE_SIGNING: ${{ secrets.TRUSTED_SIGNING_ACCOUNT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Set up Azure Trusted Signing
+        if: env.HAS_AZURE_SIGNING == 'true'
+        shell: pwsh
+        run: |
+          nuget install Microsoft.Trusted.Signing.Client -OutputDirectory "$env:RUNNER_TEMP\tsc" -ExcludeVersion
+          $dlib = "$env:RUNNER_TEMP\tsc\Microsoft.Trusted.Signing.Client\bin\x64\Azure.CodeSigning.Dlib.dll"
+          $metadata = "$env:RUNNER_TEMP\tsc\metadata.json"
+          @{
+            Endpoint = "${{ secrets.TRUSTED_SIGNING_ENDPOINT }}"
+            CodeSigningAccountName = "${{ secrets.TRUSTED_SIGNING_ACCOUNT }}"
+            CertificateProfileName = "${{ secrets.TRUSTED_SIGNING_PROFILE }}"
+          } | ConvertTo-Json | Set-Content $metadata
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          "SIGNTOOL_PATH=$($signtool.FullName)" | Out-File -Append $env:GITHUB_ENV
+          "SQUIRREL_SIGN_PARAMS=/v /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 /dlib `"$dlib`" /dmdf `"$metadata`"" | Out-File -Append $env:GITHUB_ENV
+      - run: npm ci
+      - run: npm run make -- --targets @electron-forge/maker-squirrel
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "out\make\squirrel.windows\x64\*Setup.exe" | Select-Object -First 1
+          $sig = Get-AuthenticodeSignature $setup.FullName
+          $sig | Format-List Status, StatusMessage, SignerCertificate
+          if ($sig.Status -ne "Valid") { Write-Error "Setup.exe signature is $($sig.Status)"; exit 1 }
+          $appSig = Get-AuthenticodeSignature "out\Olorin Companion-win32-x64\Olorin Companion.exe"
+          $appSig | Format-List Status, SignerCertificate
+          if ($appSig.Status -ne "Valid") { Write-Error "App exe signature is $($appSig.Status)"; exit 1 }
+          Write-Host "ALL WINDOWS SIGNING CHECKS PASSED"
+
+  sign-check-macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
