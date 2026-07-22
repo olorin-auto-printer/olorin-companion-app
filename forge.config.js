@@ -3,14 +3,29 @@ const fs = require("fs");
 const { FusesPlugin } = require("@electron-forge/plugin-fuses");
 const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 
+// macOS signing + notarization activate automatically when the environment
+// provides credentials; see the "Signing and releases" section of README.md.
+const osxSigning = process.env.APPLE_ID
+  ? {
+      osxSign: {},
+      osxNotarize: {
+        appleId: process.env.APPLE_ID,
+        appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
+        teamId: process.env.APPLE_TEAM_ID,
+      },
+    }
+  : {};
+
 module.exports = {
   packagerConfig: {
     // Extensionless: packager picks icon.ico on Windows and icon.png elsewhere
     icon: path.join(__dirname, "src", "icon"),
     asar: {
-      // SumatraPDF must live outside the asar archive to be executable
+      // SumatraPDF and the raw-print helper must live outside the asar
+      // archive to be executable
       unpack: "**/resources/win32/**",
     },
+    ...osxSigning,
     // Development-only files that have no business inside the shipped app
     ignore: [
       /^\/\.github/,
@@ -39,6 +54,25 @@ module.exports = {
       name: "@electron-forge/maker-squirrel",
       config: {
         setupIcon: path.join(__dirname, "src", "icon.ico"),
+        // Windows code signing when credentials are provided, e.g.
+        // '/f cert.pfx /p password /tr http://timestamp...' or an Azure
+        // Trusted Signing invocation
+        ...(process.env.SQUIRREL_SIGN_PARAMS
+          ? { signWithParams: process.env.SQUIRREL_SIGN_PARAMS }
+          : {}),
+      },
+    },
+    {
+      // MSI for GPO/Intune fleet deployment. Requires the WiX v3 toolset on
+      // the build machine (preinstalled on GitHub windows runners).
+      name: "@electron-forge/maker-wix",
+      config: {
+        language: 1033,
+        manufacturer: "Kyle M Hall",
+        icon: path.join(__dirname, "src", "icon.ico"),
+        ui: {
+          chooseDirectory: true,
+        },
       },
     },
     {
@@ -63,6 +97,18 @@ module.exports = {
           bin: "Olorin Companion",
           requires: ["cups-client"],
         },
+      },
+    },
+  ],
+  publishers: [
+    {
+      name: "@electron-forge/publisher-github",
+      config: {
+        repository: {
+          owner: "olorin-auto-printer",
+          name: "olorin-companion-app",
+        },
+        draft: true,
       },
     },
   ],

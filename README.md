@@ -17,12 +17,23 @@ the `olorin-browser-extension` repository.
 
 1. Install the companion app and set it to run at login. The app lives in
    the system tray; closing the window just hides it.
-2. Install the Olorin browser extension and use its Settings page to map
-   each logical printer (receipt, sticker, paper, full sheet, label) to a
-   real printer. Settings are stored by the companion app in
-   `olorin_options.json`, so all browsers on the machine share them.
+2. Map each logical printer (receipt, sticker, paper, full sheet, label) to
+   a real printer — either in the companion app's own window or in the
+   browser extension's Settings page; both edit the same settings, stored
+   by the companion app in `olorin_options.json` and shared by every
+   browser on the machine. Per-printer page size, margins, orientation,
+   copies, and duplex are supported. Use the Test button on each row to
+   verify a mapping.
 3. See the extension README for the Koha side (print buttons in notice
    templates and the `IntranetSlipPrinterJS` system preference).
+
+The app window also shows a live log of recent print jobs, and each printer
+row has a Drawer button that opens a cash drawer connected to that printer
+(standard ESC/POS kick; Koha pages can trigger the same via a
+`data-action="cash-drawer"` button — see the extension docs).
+
+On Windows the app updates itself automatically from published GitHub
+releases.
 
 ## How printing works
 
@@ -64,6 +75,26 @@ npm run lint        # eslint + prettier
 npm run make        # build platform packages into out/make/
 npm run fetch-sumatra  # re-download + verify the vendored SumatraPDF (upgrades only)
 ```
+
+## Signing and releases
+
+Tagging `vX.Y.Z` runs the Release workflow, which builds installers on all
+three platforms and uploads them to a **draft** GitHub release; publish the
+draft to ship. Published releases feed the Windows auto-updater.
+
+Code signing activates automatically when credentials are present in the
+build environment (set them as repository secrets and export them in the
+release workflow when available):
+
+- **macOS**: `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+  (plus a Developer ID certificate in the keychain). Once builds are
+  notarized, macOS auto-update can be enabled in `src/index.js`.
+- **Windows**: `SQUIRREL_SIGN_PARAMS` — the signtool parameter string
+  (certificate or Azure Trusted Signing invocation).
+
+Troubleshooting: the app writes a log via electron-log (on macOS
+`~/Library/Logs/olorin_companion/main.log`; on Windows
+`%USERPROFILE%\AppData\Roaming\olorin_companion\logs\main.log`).
 
 ## License
 
