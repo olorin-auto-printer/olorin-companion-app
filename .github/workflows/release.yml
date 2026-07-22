@@ -27,7 +27,20 @@ jobs:
       - name: Install rpm tooling
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
+      # macOS signing + notarization activate automatically once the four
+      # APPLE_* secrets exist (see README "Signing and releases"); without
+      # them the build stays unsigned exactly as before.
+      - name: Import the Developer ID certificate
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12 != ''
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
       - run: npm ci
       - run: npm run publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SQUIRREL_SIGN_PARAMS: ${{ secrets.SQUIRREL_SIGN_PARAMS }}

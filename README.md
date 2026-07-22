@@ -89,9 +89,22 @@ Code signing activates automatically when credentials are present in the
 build environment (set them as repository secrets and export them in the
 release workflow when available):
 
-- **macOS**: `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
-  (plus a Developer ID certificate in the keychain). Once builds are
-  notarized, macOS auto-update can be enabled in `src/index.js`.
+- **macOS** (four repository secrets):
+  - `APPLE_CERTIFICATE_P12` — the "Developer ID Application" certificate
+    exported from Keychain Access as a .p12, base64-encoded
+    (`base64 -i cert.p12 | pbcopy`)
+  - `APPLE_CERTIFICATE_PASSWORD` — the password chosen for that .p12 export
+  - `APPLE_ID` — the Apple Account email of the enrolled developer
+  - `APPLE_APP_SPECIFIC_PASSWORD` — an app-specific password generated at
+    account.apple.com (Sign-In and Security → App-Specific Passwords)
+  - `APPLE_TEAM_ID` — the 10-character Team ID from the developer account's
+    membership page
+
+  The release workflow imports the certificate into the runner's keychain
+  and Forge signs, hardens, and notarizes the app automatically. Once the
+  first notarized release ships, macOS auto-update can be enabled in
+  `src/index.js`.
+
 - **Windows**: `SQUIRREL_SIGN_PARAMS` — the signtool parameter string
   (certificate or Azure Trusted Signing invocation).
 
