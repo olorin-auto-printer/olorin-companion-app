@@ -28,9 +28,14 @@ const logger = {
 };
 
 // Auto-update from GitHub Releases. Windows only until macOS builds are
-// signed (unsigned apps cannot use the macOS auto-updater).
+// signed (unsigned apps cannot use the macOS auto-updater). An updater
+// problem must never take the app down — printing is the job.
 if (app.isPackaged && process.platform === "win32") {
-  updateElectronApp({ logger: log });
+  try {
+    updateElectronApp({ logger: log });
+  } catch (error) {
+    log.error("Auto-update setup failed:", error);
+  }
 }
 
 let mainWindow;

@@ -77,7 +77,10 @@ jobs:
         run: |
           $setup = Get-ChildItem "out\make\squirrel.windows\x64\*Setup.exe" | Select-Object -First 1
           Write-Host "Installing $($setup.FullName)"
-          Start-Process -FilePath $setup.FullName -Wait
+          # No -Wait: in PowerShell 7 it waits for the whole process tree,
+          # and the setup auto-launches the (never-exiting) tray app. The
+          # smoke script polls for the server instead.
+          Start-Process -FilePath $setup.FullName
           try {
             node scripts/smoke-test.mjs --printer "Microsoft Print to PDF" --output "C:\smoke\out.pdf"
             $code = $LASTEXITCODE
