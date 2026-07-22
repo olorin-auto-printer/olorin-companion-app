@@ -1,15 +1,23 @@
 const sumatra = require("./sumatra");
 const cups = require("./cups");
+const windowsRaw = require("./windows-raw");
 
 // Select the platform print backend. Strict equality matters: the old code
 // used platform.includes("win"), which also matches "darwin".
 function createBackend({ platform = process.platform, isPackaged = false, appRoot } = {}) {
   if (platform === "win32") {
     const sumatraPath = sumatra.resolveSumatraPath({ isPackaged, appRoot });
-    return { print: (job) => sumatra.print({ ...job, sumatraPath }) };
+    const scriptPath = windowsRaw.resolveScriptPath({ isPackaged, appRoot });
+    return {
+      print: (job) => sumatra.print({ ...job, sumatraPath }),
+      kick: (job) => windowsRaw.kick({ ...job, scriptPath }),
+    };
   }
 
-  return { print: (job) => cups.print(job) };
+  return {
+    print: (job) => cups.print(job),
+    kick: (job) => cups.kick(job),
+  };
 }
 
 // Printer enumeration via Electron's webContents.getPrintersAsync(), which

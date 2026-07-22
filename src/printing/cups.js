@@ -4,20 +4,28 @@ const { PrintError } = require("../errors");
 
 // macOS/Linux printing via the CUPS 'lp' command.
 
-function buildLpArgs({ deviceName, pdfPath, orientation }) {
+function buildLpArgs({ deviceName, pdfPath, orientation, copies, duplex }) {
   const args = ["-d", deviceName];
 
   if (String(orientation || "").toLowerCase() === "landscape") {
     args.push("-o", "landscape");
   }
 
+  if (Number.isInteger(copies) && copies > 1) {
+    args.push("-n", String(copies));
+  }
+
+  if (duplex === "long") {
+    args.push("-o", "sides=two-sided-long-edge");
+  } else if (duplex === "short") {
+    args.push("-o", "sides=two-sided-short-edge");
+  }
+
   args.push(pdfPath);
   return args;
 }
 
-async function print({ pdfPath, deviceName, orientation, execFileImpl = execFile }) {
-  const args = buildLpArgs({ deviceName, pdfPath, orientation });
-
+async function runLp(args, execFileImpl) {
   try {
     await promisify(execFileImpl)("lp", args);
   } catch (error) {
@@ -31,4 +39,21 @@ async function print({ pdfPath, deviceName, orientation, execFileImpl = execFile
   }
 }
 
-module.exports = { buildLpArgs, print };
+async function print({
+  pdfPath,
+  deviceName,
+  orientation,
+  copies,
+  duplex,
+  execFileImpl = execFile,
+}) {
+  await runLp(buildLpArgs({ deviceName, pdfPath, orientation, copies, duplex }), execFileImpl);
+}
+
+// Send a raw file (e.g. an ESC/POS drawer-kick command) straight to the
+// printer, bypassing CUPS filters.
+async function kick({ filePath, deviceName, execFileImpl = execFile }) {
+  await runLp(["-d", deviceName, "-o", "raw", filePath], execFileImpl);
+}
+
+module.exports = { buildLpArgs, print, kick };

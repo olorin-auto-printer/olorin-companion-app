@@ -17,7 +17,7 @@ function resolveSumatraPath({ isPackaged, appRoot }) {
   return sumatraPath;
 }
 
-function buildSumatraArgs({ deviceName, pdfPath, orientation }) {
+function buildSumatraArgs({ deviceName, pdfPath, orientation, copies, duplex }) {
   // Without noscale Sumatra scales to fit the page, which is bad for labels.
   const settings = ["noscale"];
 
@@ -26,11 +26,29 @@ function buildSumatraArgs({ deviceName, pdfPath, orientation }) {
     settings.push(wanted);
   }
 
+  if (Number.isInteger(copies) && copies > 1) {
+    settings.push(`${copies}x`);
+  }
+
+  if (duplex === "long") {
+    settings.push("duplexlong");
+  } else if (duplex === "short") {
+    settings.push("duplexshort");
+  }
+
   return ["-print-to", deviceName, "-print-settings", settings.join(","), "-silent", pdfPath];
 }
 
-async function print({ pdfPath, deviceName, orientation, sumatraPath, execFileImpl = execFile }) {
-  const args = buildSumatraArgs({ deviceName, pdfPath, orientation });
+async function print({
+  pdfPath,
+  deviceName,
+  orientation,
+  copies,
+  duplex,
+  sumatraPath,
+  execFileImpl = execFile,
+}) {
+  const args = buildSumatraArgs({ deviceName, pdfPath, orientation, copies, duplex });
 
   try {
     await promisify(execFileImpl)(sumatraPath, args);

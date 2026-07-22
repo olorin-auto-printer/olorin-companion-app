@@ -7,6 +7,22 @@ exactly one JSON response.
 
 ## Commands
 
+### `hello`
+
+Request:
+
+```json
+{ "id": "hello", "text": "hello" }
+```
+
+Response: the app version and protocol version. Companion apps older than
+2.0.0 send no response to unknown commands, so callers should treat a
+timeout as "version unknown".
+
+```json
+{ "id": "hello", "version": "2.0.0", "protocol": 2 }
+```
+
 ### `list-printer`
 
 Request:
@@ -46,6 +62,11 @@ Only `content` and `printer` are required. Dimension fields are in inches.
 Saved options take precedence over inline fields (`options[key + "_width"] ||
 message.pageWidth`, and so on).
 
+Two further print settings are supported, both resolvable from saved options
+(`<key>_copies`, `<key>_duplex`) or inline (`copies`, `duplex`): `copies` is
+an integer ≥ 1 (default 1), and `duplex` is `"long"` or `"short"`
+(double-sided binding edge; anything else means single-sided).
+
 Response (always sent, after the job is handed to the OS spooler or fails):
 
 ```json
@@ -65,6 +86,24 @@ Response (always sent, after the job is handed to the OS spooler or fails):
    keeps the legacy Firefox extension (v1.1), which sent device names,
    working.
 3. If neither matches, the response is an error.
+
+### `kick-drawer`
+
+Opens the cash drawer attached to a receipt printer by sending the standard
+ESC/POS pulse command (ESC p 0 25 250) as a raw print job.
+
+Request (`printer` resolves exactly like `printer-command`'s):
+
+```json
+{ "id": "kick", "text": "kick-drawer", "printer": "receipt_printer" }
+```
+
+Response:
+
+```json
+{ "id": "kick", "success": true, "printer": "EPSON_TM_T88V" }
+{ "id": "kick", "success": false, "error": "..." }
+```
 
 ### `get-options`
 
@@ -91,6 +130,12 @@ Response:
 ```json
 { "id": "set-options", "success": true }
 ```
+
+`allowed_origins` cannot be set through this command: it is the setting that
+restricts which pages may use this socket, so letting the socket change it
+would defeat the point. Any `allowed_origins` in the payload is ignored and
+the stored value is preserved; it is editable only in the companion app's
+own window.
 
 ### Errors
 

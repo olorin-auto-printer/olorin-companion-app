@@ -43,6 +43,24 @@ describe("sumatra", () => {
       expect(args).toContain("noscale");
       expect(args.join(",")).not.toMatch(/automatic/i);
     });
+
+    it("adds a copies multiplier for more than one copy", () => {
+      expect(buildSumatraArgs({ deviceName: "P", pdfPath: "j.pdf", copies: 2 })).toContain(
+        "noscale,2x",
+      );
+      expect(buildSumatraArgs({ deviceName: "P", pdfPath: "j.pdf", copies: 1 })).toContain(
+        "noscale",
+      );
+    });
+
+    it("adds duplex print settings", () => {
+      expect(buildSumatraArgs({ deviceName: "P", pdfPath: "j.pdf", duplex: "long" })).toContain(
+        "noscale,duplexlong",
+      );
+      expect(buildSumatraArgs({ deviceName: "P", pdfPath: "j.pdf", duplex: "short" })).toContain(
+        "noscale,duplexshort",
+      );
+    });
   });
 
   describe("resolveSumatraPath", () => {

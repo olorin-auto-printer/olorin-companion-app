@@ -86,12 +86,26 @@ function buildPdfOptions({ options = {}, message = {}, printerKey = null }) {
 
   const orientation = setting("_orientation", "orientation");
 
-  return { pdfOptions, orientation };
+  // Copies (integer >= 1) and duplex ("long" | "short") are print-side
+  // settings passed to the OS backend, not printToPDF.
+  const rawCopies = parseInt(setting("_copies", "copies"), 10);
+  const copies = Number.isInteger(rawCopies) && rawCopies >= 1 ? rawCopies : 1;
+
+  const rawDuplex = String(setting("_duplex", "duplex") || "").toLowerCase();
+  const duplex = rawDuplex === "long" || rawDuplex === "short" ? rawDuplex : undefined;
+
+  return { pdfOptions, orientation, copies, duplex };
 }
+
+// ESC/POS "generate pulse" command: ESC p 0 25 250 — opens a cash drawer
+// connected to a receipt printer's drawer-kick port.
+const DRAWER_KICK_BYTES = Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
 
 // Orchestrates a print job: resolve the printer, render the HTML to a PDF in
 // the temp dir, hand it to the platform print backend, notify, clean up.
 // Jobs are serialized through a queue so concurrent requests don't race.
+const RECENT_JOB_LIMIT = 20;
+
 function createPrintPipeline({
   optionsStore,
   listPrinters,
@@ -99,21 +113,42 @@ function createPrintPipeline({
   backend,
   tempDir,
   notify,
+  onJob,
   logger = console,
 }) {
   let queue = Promise.resolve();
+  const recentJobs = [];
 
-  async function runJob(message) {
+  function recordJob(job) {
+    recentJobs.unshift(job);
+    if (recentJobs.length > RECENT_JOB_LIMIT) {
+      recentJobs.pop();
+    }
+    if (onJob) {
+      onJob(job);
+    }
+  }
+
+  function resolveTarget(message) {
     const options = optionsStore.load();
-    const installedPrinters = await listPrinters();
-
-    const { deviceName, printerKey } = resolvePrinter({
-      requested: message.printer,
-      options,
-      installedPrinters,
+    return listPrinters().then((installedPrinters) => {
+      const { deviceName, printerKey } = resolvePrinter({
+        requested: message.printer,
+        options,
+        installedPrinters,
+      });
+      return { options, deviceName, printerKey };
     });
+  }
 
-    const { pdfOptions, orientation } = buildPdfOptions({ options, message, printerKey });
+  async function runPrintJob(message) {
+    const { options, deviceName, printerKey } = await resolveTarget(message);
+
+    const { pdfOptions, orientation, copies, duplex } = buildPdfOptions({
+      options,
+      message,
+      printerKey,
+    });
 
     const pdfBuffer = await renderToPdf(message.content, pdfOptions);
 
@@ -121,7 +156,7 @@ function createPrintPipeline({
     await fs.promises.writeFile(pdfPath, pdfBuffer);
 
     try {
-      await backend.print({ pdfPath, deviceName, orientation });
+      await backend.print({ pdfPath, deviceName, orientation, copies, duplex });
     } finally {
       fs.promises.unlink(pdfPath).catch(() => {});
     }
@@ -129,15 +164,40 @@ function createPrintPipeline({
     return { printer: deviceName };
   }
 
-  function print(message) {
+  async function runKickJob(message) {
+    const { deviceName } = await resolveTarget(message);
+
+    const filePath = path.join(tempDir, `olorin-kick-${Date.now()}-${randomUUID()}.bin`);
+    await fs.promises.writeFile(filePath, DRAWER_KICK_BYTES);
+
+    try {
+      await backend.kick({ filePath, deviceName });
+    } finally {
+      fs.promises.unlink(filePath).catch(() => {});
+    }
+
+    return { printer: deviceName };
+  }
+
+  function enqueue(type, message, runJob, { notifySuccess }) {
     const job = queue.then(async () => {
       try {
         const result = await runJob(message);
-        notify({ body: "Print successful" });
+        recordJob({ time: Date.now(), type, printer: result.printer, success: true });
+        if (notifySuccess) {
+          notify({ body: "Print successful" });
+        }
         return result;
       } catch (error) {
-        logger.error("Print failed:", error);
-        notify({ body: `Print failed: ${error.message}` });
+        logger.error(`${type} failed:`, error);
+        recordJob({
+          time: Date.now(),
+          type,
+          printer: message.printer,
+          success: false,
+          error: error.message,
+        });
+        notify({ body: `${type === "kick" ? "Drawer kick" : "Print"} failed: ${error.message}` });
         throw error;
       }
     });
@@ -148,7 +208,11 @@ function createPrintPipeline({
     return job;
   }
 
-  return { print };
+  return {
+    print: (message) => enqueue("print", message, runPrintJob, { notifySuccess: true }),
+    kickDrawer: (message) => enqueue("kick", message, runKickJob, { notifySuccess: false }),
+    getRecentJobs: () => [...recentJobs],
+  };
 }
 
-module.exports = { resolvePrinter, buildPdfOptions, createPrintPipeline };
+module.exports = { resolvePrinter, buildPdfOptions, createPrintPipeline, DRAWER_KICK_BYTES };

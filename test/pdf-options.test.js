@@ -128,4 +128,49 @@ describe("buildPdfOptions", () => {
     });
     expect(orientation).toBe("Landscape");
   });
+
+  it("defaults copies to 1 and ignores invalid values", () => {
+    for (const value of [undefined, "", "0", "-2", "abc"]) {
+      const { copies } = buildPdfOptions({
+        options: {},
+        message: { copies: value },
+        printerKey: null,
+      });
+      expect(copies).toBe(1);
+    }
+  });
+
+  it("resolves copies from config with inline fallback", () => {
+    const fromConfig = buildPdfOptions({
+      options: { receipt_printer_copies: "2" },
+      message: { copies: "5" },
+      printerKey: "receipt_printer",
+    });
+    expect(fromConfig.copies).toBe(2);
+
+    const fromMessage = buildPdfOptions({
+      options: {},
+      message: { copies: "3" },
+      printerKey: "receipt_printer",
+    });
+    expect(fromMessage.copies).toBe(3);
+  });
+
+  it("resolves duplex and rejects unknown values", () => {
+    expect(
+      buildPdfOptions({
+        options: { full_sheet_printer_duplex: "long" },
+        message: {},
+        printerKey: "full_sheet_printer",
+      }).duplex,
+    ).toBe("long");
+
+    expect(
+      buildPdfOptions({ options: {}, message: { duplex: "Short" }, printerKey: null }).duplex,
+    ).toBe("short");
+
+    expect(
+      buildPdfOptions({ options: {}, message: { duplex: "diagonal" }, printerKey: null }).duplex,
+    ).toBeUndefined();
+  });
 });

@@ -1,7 +1,16 @@
+const PROTOCOL_VERSION = 2;
+
 // Dispatches incoming WebSocket messages to their handlers and returns the
 // response object to send back. Every message now gets a response; see
 // docs/PROTOCOL.md for the full contract and backward-compatibility rules.
-function createRouter({ optionsStore, listPrinters, executePrint, logger = console }) {
+function createRouter({
+  optionsStore,
+  listPrinters,
+  executePrint,
+  executeKick,
+  version = "0.0.0",
+  logger = console,
+}) {
   async function route(rawMessage) {
     let data;
     try {
@@ -15,6 +24,18 @@ function createRouter({ optionsStore, listPrinters, executePrint, logger = conso
     }
 
     switch (data.text) {
+      case "hello":
+        return { id: "hello", version, protocol: PROTOCOL_VERSION };
+
+      case "kick-drawer":
+        try {
+          const result = await executeKick(data);
+          return { id: "kick", success: true, printer: result.printer };
+        } catch (error) {
+          logger.error("kick-drawer failed:", error);
+          return { id: "kick", success: false, error: error.message };
+        }
+
       case "list-printer":
         try {
           const printers = await listPrinters();
@@ -43,7 +64,17 @@ function createRouter({ optionsStore, listPrinters, executePrint, logger = conso
           return { id: "set-options", success: false, error: "Missing options object" };
         }
         try {
-          optionsStore.save(data.options);
+          // allowed_origins is the security setting that restricts which web
+          // pages may talk to this server — it must not be settable over the
+          // socket itself. It is preserved from the stored options and only
+          // editable from the app's own window.
+          const incoming = { ...data.options };
+          delete incoming.allowed_origins;
+          const existing = optionsStore.load();
+          if (existing.allowed_origins !== undefined) {
+            incoming.allowed_origins = existing.allowed_origins;
+          }
+          optionsStore.save(incoming);
           return { id: "set-options", success: true };
         } catch (error) {
           logger.error("set-options failed:", error);

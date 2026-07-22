@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { buildLpArgs, print } from "../src/printing/cups";
+import { buildLpArgs, print, kick } from "../src/printing/cups";
 
 describe("cups", () => {
   describe("buildLpArgs", () => {
@@ -23,6 +23,25 @@ describe("cups", () => {
         buildLpArgs({ deviceName: "P", pdfPath: "/tmp/job.pdf", orientation: "Portrait" }),
       ).toEqual(["-d", "P", "/tmp/job.pdf"]);
     });
+
+    it("adds -n for multiple copies", () => {
+      expect(buildLpArgs({ deviceName: "P", pdfPath: "/tmp/job.pdf", copies: 3 })).toEqual([
+        "-d",
+        "P",
+        "-n",
+        "3",
+        "/tmp/job.pdf",
+      ]);
+    });
+
+    it("adds sides options for duplex", () => {
+      expect(buildLpArgs({ deviceName: "P", pdfPath: "j.pdf", duplex: "long" })).toContain(
+        "sides=two-sided-long-edge",
+      );
+      expect(buildLpArgs({ deviceName: "P", pdfPath: "j.pdf", duplex: "short" })).toContain(
+        "sides=two-sided-short-edge",
+      );
+    });
   });
 
   describe("print", () => {
@@ -44,6 +63,16 @@ describe("cups", () => {
       });
       await expect(print({ pdfPath: "j.pdf", deviceName: "P", execFileImpl })).rejects.toThrow(
         /install cups-client/,
+      );
+    });
+
+    it("sends drawer kicks as raw jobs", async () => {
+      const execFileImpl = vi.fn((file, args, callback) => callback(null, ""));
+      await kick({ filePath: "/tmp/kick.bin", deviceName: "P", execFileImpl });
+      expect(execFileImpl).toHaveBeenCalledWith(
+        "lp",
+        ["-d", "P", "-o", "raw", "/tmp/kick.bin"],
+        expect.any(Function),
       );
     });
 

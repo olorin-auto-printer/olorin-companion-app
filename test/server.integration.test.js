@@ -12,12 +12,14 @@ describe("server integration", () => {
   let server;
   let savedOptions;
   let printedJobs;
+  let kickedJobs;
   let renderedCalls;
   let notifications;
 
   beforeEach(async () => {
     savedOptions = { receipt_printer: "Fake Receipt Printer" };
     printedJobs = [];
+    kickedJobs = [];
     renderedCalls = [];
     notifications = [];
 
@@ -44,6 +46,9 @@ describe("server integration", () => {
         print: async (job) => {
           printedJobs.push(job);
         },
+        kick: async (job) => {
+          kickedJobs.push(job);
+        },
       },
       tempDir: os.tmpdir(),
       notify: (n) => notifications.push(n),
@@ -54,6 +59,8 @@ describe("server integration", () => {
       optionsStore,
       listPrinters,
       executePrint: (message) => pipeline.print(message),
+      executeKick: (message) => pipeline.kickDrawer(message),
+      version: "2.0.0",
       logger: { error: () => {} },
     });
 
@@ -159,6 +166,42 @@ describe("server integration", () => {
     expect(response.error).toMatch(/Unknown printer/);
     expect(printedJobs).toHaveLength(0);
     expect(notifications[0].body).toMatch(/failed/i);
+  });
+
+  it("answers hello with version information", async () => {
+    const response = await request({ id: "hello", text: "hello" });
+    expect(response).toEqual({ id: "hello", version: "2.0.0", protocol: 2 });
+  });
+
+  it("kicks the cash drawer on the resolved printer", async () => {
+    const response = await request({
+      id: "kick",
+      text: "kick-drawer",
+      printer: "receipt_printer",
+    });
+    expect(response).toEqual({ id: "kick", success: true, printer: "Fake Receipt Printer" });
+    expect(kickedJobs).toHaveLength(1);
+    expect(kickedJobs[0].deviceName).toBe("Fake Receipt Printer");
+    expect(kickedJobs[0].filePath).toContain("olorin-kick-");
+    // No success notification for drawer kicks — they're routine
+    expect(notifications).toHaveLength(0);
+  });
+
+  it("passes copies and duplex from saved options to the print backend", async () => {
+    savedOptions = {
+      full_sheet_printer: "Fake Receipt Printer",
+      full_sheet_printer_copies: "2",
+      full_sheet_printer_duplex: "long",
+    };
+    const response = await request({
+      id: "print",
+      text: "printer-command",
+      content: "<p>duplex</p>",
+      printer: "full_sheet_printer",
+    });
+    expect(response.success).toBe(true);
+    expect(printedJobs[0].copies).toBe(2);
+    expect(printedJobs[0].duplex).toBe("long");
   });
 
   it("round-trips options through set-options and get-options", async () => {

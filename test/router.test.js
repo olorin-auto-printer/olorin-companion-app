@@ -6,6 +6,7 @@ describe("router", () => {
   let optionsStore;
   let listPrinters;
   let executePrint;
+  let executeKick;
   let router;
 
   beforeEach(() => {
@@ -15,10 +16,13 @@ describe("router", () => {
     };
     listPrinters = vi.fn().mockResolvedValue([{ name: "EPSON" }]);
     executePrint = vi.fn().mockResolvedValue({ printer: "EPSON" });
+    executeKick = vi.fn().mockResolvedValue({ printer: "EPSON" });
     router = createRouter({
       optionsStore,
       listPrinters,
       executePrint,
+      executeKick,
+      version: "2.0.0",
       logger: { error: vi.fn() },
     });
   });
@@ -98,5 +102,47 @@ describe("router", () => {
   it("responds with an error to unknown commands", async () => {
     const response = await send({ id: "x", text: "make-coffee" });
     expect(response).toEqual({ success: false, error: "Unknown command 'make-coffee'" });
+  });
+
+  it("answers hello with the app version and protocol version", async () => {
+    const response = await send({ id: "hello", text: "hello" });
+    expect(response).toEqual({ id: "hello", version: "2.0.0", protocol: 2 });
+  });
+
+  it("responds to kick-drawer with success and the resolved printer", async () => {
+    const message = { id: "kick", text: "kick-drawer", printer: "receipt_printer" };
+    const response = await send(message);
+    expect(executeKick).toHaveBeenCalledWith(expect.objectContaining(message));
+    expect(response).toEqual({ id: "kick", success: true, printer: "EPSON" });
+  });
+
+  it("responds to kick-drawer with an error when the kick fails", async () => {
+    executeKick.mockRejectedValue(new Error("Unknown printer 'nope'"));
+    const response = await send({ id: "kick", text: "kick-drawer", printer: "nope" });
+    expect(response).toEqual({ id: "kick", success: false, error: "Unknown printer 'nope'" });
+  });
+
+  it("strips allowed_origins from set-options and preserves the stored value", async () => {
+    optionsStore.load.mockReturnValue({ allowed_origins: ["https://staff.example.org"] });
+    const response = await send({
+      id: "set-options",
+      text: "set-options",
+      options: { receipt_printer: "EPSON", allowed_origins: [] },
+    });
+    expect(response).toEqual({ id: "set-options", success: true });
+    expect(optionsStore.save).toHaveBeenCalledWith({
+      receipt_printer: "EPSON",
+      allowed_origins: ["https://staff.example.org"],
+    });
+  });
+
+  it("does not let set-options introduce allowed_origins when none is stored", async () => {
+    optionsStore.load.mockReturnValue({});
+    await send({
+      id: "set-options",
+      text: "set-options",
+      options: { receipt_printer: "EPSON", allowed_origins: ["https://evil.example.com"] },
+    });
+    expect(optionsStore.save).toHaveBeenCalledWith({ receipt_printer: "EPSON" });
   });
 });
