@@ -5,7 +5,9 @@ ability to print silently. It listens on a local WebSocket
 (`ws://127.0.0.1:9696`), receives slip HTML from the extension, renders it
 to PDF, and sends it to the right printer — receipts, stickers, labels, or
 full sheets — based on the printer mappings saved from the extension's
-settings page.
+settings page. Olorin was developed for the Koha ILS and works with it out
+of the box, but any web application that embeds its print markup can use
+it — see the extension README.
 
 Works on Windows, macOS, and Linux. Installation files are on the
 [release page](https://github.com/olorin-auto-printer/olorin-companion-app/releases).
@@ -24,12 +26,13 @@ the `olorin-browser-extension` repository.
    browser on the machine. Per-printer page size, margins, orientation,
    copies, and duplex are supported. Use the Test button on each row to
    verify a mapping.
-3. See the extension README for the Koha side (print buttons in notice
+3. See the extension README for the web-page side: the print-button
+   markup any application can embed, plus Koha specifics (notice
    templates and the `IntranetSlipPrinterJS` system preference).
 
 The app window also shows a live log of recent print jobs, and each printer
 row has a Drawer button that opens a cash drawer connected to that printer
-(standard ESC/POS kick; Koha pages can trigger the same via a
+(standard ESC/POS kick; web pages can trigger the same via a
 `data-action="cash-drawer"` button — see the extension docs).
 
 On Windows the app updates itself automatically from published GitHub

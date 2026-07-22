@@ -8,7 +8,7 @@ const DEFAULT_PORT = 9696;
 //   have OS-level print access, so blocking them adds no security.
 // - Browser extensions: always allowed.
 // - http(s) pages: allowed by default because the legacy Firefox extension
-//   connects directly from the Koha page, whose origin differs per library and
+//   connects directly from the web page (e.g. Koha), whose origin differs per library and
 //   cannot be known in advance. Setting a non-empty "allowed_origins" array in
 //   olorin_options.json restricts http(s) origins to that list.
 // - Anything else (file://, the literal "null" origin): rejected.
