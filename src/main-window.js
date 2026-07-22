@@ -5,10 +5,13 @@ const path = require("path");
 // and minimize hide the window instead of destroying it.
 function createMainWindow({ isQuitting }) {
   const mainWindow = new BrowserWindow({
-    width: 600,
-    height: 400,
+    width: 980,
+    height: 720,
     show: true,
     icon: path.join(__dirname, "icon.png"),
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+    },
   });
 
   mainWindow.loadFile(path.join(__dirname, "index.html"));

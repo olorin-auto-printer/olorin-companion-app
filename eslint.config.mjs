@@ -27,4 +27,12 @@ export default [
       sourceType: "module",
     },
   },
+  {
+    files: ["src/renderer.js"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
 ];
