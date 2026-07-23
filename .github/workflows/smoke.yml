@@ -13,6 +13,10 @@ name: Smoke test
 on:
   push:
   workflow_dispatch:
+  schedule:
+    # Nightly off-peak run — the smoke test depends on OS printing stacks
+    # (SumatraPDF, CUPS, ippeveprinter) that drift with runner images.
+    - cron: "43 4 * * *"
 
 jobs:
   smoke-windows:

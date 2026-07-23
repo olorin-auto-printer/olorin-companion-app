@@ -3,6 +3,10 @@ name: CI
 on:
   push:
   pull_request:
+  schedule:
+    # Nightly off-peak run to catch breakage from renewed runner images and
+    # unpinned dependencies even when nothing is pushed.
+    - cron: "17 4 * * *"
 
 jobs:
   test:
