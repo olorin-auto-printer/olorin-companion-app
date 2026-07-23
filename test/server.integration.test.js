@@ -205,6 +205,27 @@ describe("server integration", () => {
     expect(printedJobs[0].duplex).toBe("long");
   });
 
+  it("flags device-name (legacy) jobs but not logical-key jobs", async () => {
+    await request({
+      id: "print",
+      text: "printer-command",
+      content: "<p>old client</p>",
+      printer: "Fake_Label_Printer",
+    });
+    await request({
+      id: "print",
+      text: "printer-command",
+      content: "<p>current client</p>",
+      printer: "receipt_printer",
+    });
+
+    const jobs = pipeline.getRecentJobs();
+    const legacyJob = jobs.find((job) => job.printer === "Fake_Label_Printer");
+    const modernJob = jobs.find((job) => job.printer === "Fake Receipt Printer");
+    expect(legacyJob.legacy).toBe(true);
+    expect(modernJob.legacy).toBe(false);
+  });
+
   it("retains the message payload on failed job records only", async () => {
     const ok = await request({
       id: "print",

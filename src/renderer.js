@@ -274,6 +274,15 @@ function jobLine(job) {
   item.textContent = job.success
     ? `${time} — ${what} to ${job.printer}`
     : `${time} — ${what} to ${job.printer} FAILED: ${job.error}`;
+  if (job.legacy) {
+    item.append(
+      el("span", {
+        class: "tag-legacy",
+        text: "legacy client",
+        title: "Sent with the old device-name format; update the browser extension",
+      }),
+    );
+  }
   if (!job.success) {
     const retryButton = el("button", { type: "button", class: "retry", text: "Retry" });
     retryButton.addEventListener("click", () => retryJob(job.time, retryButton));

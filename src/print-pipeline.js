@@ -106,6 +106,11 @@ const DRAWER_KICK_BYTES = Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
 // Jobs are serialized through a queue so concurrent requests don't race.
 const RECENT_JOB_LIMIT = 20;
 
+// Warn about legacy-format messages (raw device name instead of a logical
+// printer key) only once per app run — busy sites could otherwise flood the
+// log with one warning per slip.
+let hasWarnedLegacyMessage = false;
+
 function createPrintPipeline({
   optionsStore,
   listPrinters,
@@ -137,12 +142,20 @@ function createPrintPipeline({
         options,
         installedPrinters,
       });
+      if (printerKey === null && !hasWarnedLegacyMessage) {
+        hasWarnedLegacyMessage = true;
+        logger.warn(
+          "Legacy-format print message received (raw device name instead of a logical " +
+            "printer key); this fallback may be removed in v3 — update the browser extension",
+        );
+      }
       return { options, deviceName, printerKey };
     });
   }
 
-  async function runPrintJob(message) {
+  async function runPrintJob(message, context) {
     const { options, deviceName, printerKey } = await resolveTarget(message);
+    context.legacy = printerKey === null;
 
     const { pdfOptions, orientation, copies, duplex } = buildPdfOptions({
       options,
@@ -164,8 +177,9 @@ function createPrintPipeline({
     return { printer: deviceName };
   }
 
-  async function runKickJob(message) {
-    const { deviceName } = await resolveTarget(message);
+  async function runKickJob(message, context) {
+    const { deviceName, printerKey } = await resolveTarget(message);
+    context.legacy = printerKey === null;
 
     const filePath = path.join(tempDir, `olorin-kick-${Date.now()}-${randomUUID()}.bin`);
     await fs.promises.writeFile(filePath, DRAWER_KICK_BYTES);
@@ -181,9 +195,20 @@ function createPrintPipeline({
 
   function enqueue(type, message, runJob, { notifySuccess }) {
     const job = queue.then(async () => {
+      // The job fills in context.legacy once the printer is resolved: true
+      // when the message carried a raw device name (legacy 1.x extensions)
+      // instead of a logical printer key. The app's own IPC always uses
+      // logical keys, so its jobs are naturally non-legacy.
+      const context = { legacy: false };
       try {
-        const result = await runJob(message);
-        recordJob({ time: Date.now(), type, printer: result.printer, success: true });
+        const result = await runJob(message, context);
+        recordJob({
+          time: Date.now(),
+          type,
+          printer: result.printer,
+          success: true,
+          legacy: context.legacy,
+        });
         if (notifySuccess) {
           notify({ body: "Print successful" });
         }
@@ -199,6 +224,7 @@ function createPrintPipeline({
           printer: message.printer,
           success: false,
           error: error.message,
+          legacy: context.legacy,
           message,
         });
         notify({ body: `${type === "kick" ? "Drawer kick" : "Print"} failed: ${error.message}` });
