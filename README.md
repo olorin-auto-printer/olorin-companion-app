@@ -24,8 +24,10 @@ the `olorin-browser-extension` repository.
    browser extension's Settings page; both edit the same settings, stored
    by the companion app in `olorin_options.json` and shared by every
    browser on the machine. Per-printer page size, margins, orientation,
-   copies, and duplex are supported. Use the Test button on each row to
-   verify a mapping.
+   copies, and duplex are supported. Sizes can be shown in inches or
+   millimeters (stored values are always inches), and each row has a
+   Presets dropdown for common paper sizes (receipt rolls, DYMO labels,
+   A4, Letter). Use the Test button on each row to verify a mapping.
 3. See the extension README for the web-page side: the print-button
    markup any application can embed, plus Koha specifics (notice
    templates and the `IntranetSlipPrinterJS` system preference).
@@ -33,10 +35,18 @@ the `olorin-browser-extension` repository.
 The app window also shows a live log of recent print jobs, and each printer
 row has a Drawer button that opens a cash drawer connected to that printer
 (standard ESC/POS kick; web pages can trigger the same via a
-`data-action="cash-drawer"` button — see the extension docs).
+`data-action="cash-drawer"` button — see the extension docs). Failed jobs
+in the log get a Retry button, and the Reveal log button in the header
+opens the app's log file. Jobs sent with a raw printer name instead of a
+logical printer key (the 1.x extensions did this) are tagged
+"legacy client" — that fallback will be tightened in a future v3, so
+tagged clients should update their extension. The window is available in
+English, French, and Spanish, following the OS language.
 
 On Windows and macOS the app updates itself automatically from published
-GitHub releases (on macOS, keep the app in /Applications).
+GitHub releases (on macOS, keep the app in /Applications). On Linux there
+is no auto-update; packaged builds instead show a banner with a download
+link when a newer release is available.
 
 ## How printing works
 
@@ -65,6 +75,8 @@ extensions, is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 - `OLORIN_PORT` — override the WebSocket port (default 9696).
 - `allowed_origins` — optional array in `olorin_options.json` restricting
   which web page origins may talk to the app.
+- `units` — `"in"` or `"mm"`; the display unit of the control panel.
+  Stored sizes and margins are always inches regardless of this setting.
 
 ## Development
 
