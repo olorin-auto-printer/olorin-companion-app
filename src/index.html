@@ -9,10 +9,10 @@
     <header>
       <div>
         <h1>Olorin Companion</h1>
-        <p id="status-line">Starting …</p>
+        <p id="status-line" data-i18n="statusStarting">Starting …</p>
       </div>
       <div class="header-right">
-        <button id="reveal-log" type="button">Reveal log</button>
+        <button id="reveal-log" type="button" data-i18n="revealLog">Reveal log</button>
         <p class="muted" id="options-path"></p>
       </div>
     </header>
@@ -20,26 +20,30 @@
     <div id="update-banner" class="banner hide">
       <span id="update-banner-text"></span>
       <span>
-        <button id="update-download" type="button" class="primary">Download</button>
-        <button id="update-dismiss" type="button" title="Dismiss">✕</button>
+        <button id="update-download" type="button" class="primary" data-i18n="updateDownload">
+          Download
+        </button>
+        <button id="update-dismiss" type="button" title="Dismiss" data-i18n-title="updateDismiss">
+          ✕
+        </button>
       </span>
     </div>
 
     <section>
       <div class="section-head">
-        <h2>Printers</h2>
+        <h2 data-i18n="printersHeading">Printers</h2>
         <div class="section-tools">
-          <label for="units">Units</label>
+          <label for="units" data-i18n="unitsLabel">Units</label>
           <select id="units">
-            <option value="in">Inches</option>
-            <option value="mm">Millimeters</option>
+            <option value="in" data-i18n="unitsInches">Inches</option>
+            <option value="mm" data-i18n="unitsMillimeters">Millimeters</option>
           </select>
-          <button id="refresh" type="button">Refresh Printers</button>
-          <button id="save" type="button" class="primary">Save</button>
-          <span id="save-msg" class="toast hide">Saved</span>
+          <button id="refresh" type="button" data-i18n="refreshPrinters">Refresh Printers</button>
+          <button id="save" type="button" class="primary" data-i18n="save">Save</button>
+          <span id="save-msg" class="toast hide" data-i18n="savedToast">Saved</span>
         </div>
       </div>
-      <p class="muted">
+      <p class="muted" data-i18n="printersHint">
         Web pages (Koha slips, for example) pick one of these five printer types; map each one you
         use to a real printer. Sizes and margins are in the selected unit. These are the same
         settings the browser extension edits.
@@ -47,18 +51,18 @@
       <table id="printers">
         <thead>
           <tr>
-            <th>Printer</th>
-            <th>Device</th>
+            <th data-i18n="colPrinter">Printer</th>
+            <th data-i18n="colDevice">Device</th>
             <th></th>
-            <th data-dimension="Width">Width</th>
-            <th data-dimension="Height">Height</th>
-            <th data-dimension="Top">Top</th>
-            <th data-dimension="Bottom">Bottom</th>
-            <th data-dimension="Left">Left</th>
-            <th data-dimension="Right">Right</th>
-            <th>Orientation</th>
-            <th>Copies</th>
-            <th>Duplex</th>
+            <th data-dimension="colWidth">Width</th>
+            <th data-dimension="colHeight">Height</th>
+            <th data-dimension="colTop">Top</th>
+            <th data-dimension="colBottom">Bottom</th>
+            <th data-dimension="colLeft">Left</th>
+            <th data-dimension="colRight">Right</th>
+            <th data-i18n="colOrientation">Orientation</th>
+            <th data-i18n="colCopies">Copies</th>
+            <th data-i18n="colDuplex">Duplex</th>
             <th></th>
           </tr>
         </thead>
@@ -69,8 +73,8 @@
     </section>
 
     <section>
-      <h2>Access control</h2>
-      <p class="muted">
+      <h2 data-i18n="accessHeading">Access control</h2>
+      <p class="muted" data-i18n="accessHint">
         By default any web page on this computer may send print jobs. To restrict printing to your
         own web application (e.g. your Koha staff site), list its origins here, one per line (e.g.
         https://staff.mylibrary.org). Browser extensions always keep access. Leave empty to allow
@@ -80,13 +84,14 @@
     </section>
 
     <section>
-      <h2>Recent jobs</h2>
+      <h2 data-i18n="recentJobsHeading">Recent jobs</h2>
       <ul id="jobs">
-        <li class="muted" id="no-jobs">No jobs yet.</li>
+        <li class="muted" id="no-jobs" data-i18n="noJobs">No jobs yet.</li>
       </ul>
     </section>
 
     <script src="units.js"></script>
+    <script src="renderer-locales.js"></script>
     <script src="renderer.js"></script>
   </body>
 </html>

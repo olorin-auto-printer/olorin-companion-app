@@ -202,6 +202,7 @@ async function initialize() {
     running: serverPort !== null,
     optionsPath: optionsStore.resolvePath(),
     platform: process.platform,
+    locale: app.getLocale(),
   }));
   ipcMain.handle("olorin:list-printers", () => listPrinters());
   ipcMain.handle("olorin:get-options", () => optionsStore.load());

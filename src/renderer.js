@@ -3,11 +3,11 @@
 // window.olorin bridge exposed by preload.js.
 
 const PRINTERS = [
-  { key: "receipt_printer", label: "Receipt" },
-  { key: "sticker_printer", label: "Sticker" },
-  { key: "paper_printer", label: "Paper" },
-  { key: "full_sheet_printer", label: "Full Sheet" },
-  { key: "label_printer", label: "Label" },
+  { key: "receipt_printer", labelKey: "printerReceipt" },
+  { key: "sticker_printer", labelKey: "printerSticker" },
+  { key: "paper_printer", labelKey: "printerPaper" },
+  { key: "full_sheet_printer", labelKey: "printerFullSheet" },
+  { key: "label_printer", labelKey: "printerLabel" },
 ];
 
 const NUMBER_FIELDS = [
@@ -20,6 +20,33 @@ const NUMBER_FIELDS = [
 ];
 
 const Units = window.OlorinUnits;
+const Locales = window.OlorinLocales;
+
+// Active string table; loadStatus() swaps it for the OS locale before the
+// rest of the UI is built. Missing keys fall back to English, then the key.
+let strings = Locales.RENDERER_LOCALES.en;
+
+function t(key, vars) {
+  let text = strings[key] ?? Locales.RENDERER_LOCALES.en[key] ?? key;
+  if (vars) {
+    for (const [name, value] of Object.entries(vars)) {
+      text = text.replaceAll(`{${name}}`, value);
+    }
+  }
+  return text;
+}
+
+// Translate the static HTML: every element carrying data-i18n gets its text
+// replaced by the string for that key; data-i18n-title does the same for the
+// title (tooltip) attribute.
+function applyTranslations() {
+  for (const node of document.querySelectorAll("[data-i18n]")) {
+    node.textContent = t(node.getAttribute("data-i18n"));
+  }
+  for (const node of document.querySelectorAll("[data-i18n-title]")) {
+    node.title = t(node.getAttribute("data-i18n-title"));
+  }
+}
 
 // All six number fields are dimensions; stored values are always inches, the
 // fields display the active unit ("in" or "mm", persisted as options.units).
@@ -55,19 +82,20 @@ function applyPreset(key, select) {
   document.getElementById(key + "_height").value = Units.toDisplay(preset.height, activeUnits);
 }
 
-function buildRow({ key, label }) {
+function buildRow({ key, labelKey }) {
   const row = el("tr");
 
-  row.append(el("td", { class: "printer-label", text: label }));
+  row.append(el("td", { class: "printer-label", text: t(labelKey) }));
 
   const device = el("select", { id: key });
-  device.append(el("option", { value: "", text: "Select" }));
+  device.append(el("option", { value: "", text: t("select") }));
   row.append(el("td", {}, [device]));
 
   const preset = el("select", { id: key + "_preset", class: "preset" });
-  preset.append(el("option", { value: "", text: "Presets…" }));
-  for (const { id, label: presetLabel } of Units.PAPER_PRESETS) {
-    preset.append(el("option", { value: id, text: presetLabel }));
+  preset.append(el("option", { value: "", text: t("presetsPlaceholder") }));
+  for (const { id, label } of Units.PAPER_PRESETS) {
+    // Preset names are translated when a key exists; label is the fallback.
+    preset.append(el("option", { value: id, text: strings[`preset_${id}`] || label }));
   }
   preset.addEventListener("change", () => applyPreset(key, preset));
   row.append(el("td", {}, [preset]));
@@ -80,10 +108,10 @@ function buildRow({ key, label }) {
 
   const orientation = el("select", { id: key + "_orientation" });
   for (const [value, text] of [
-    ["", "Select"],
-    ["Portrait", "Portrait"],
-    ["Landscape", "Landscape"],
-    ["Automatic", "Automatic"],
+    ["", t("select")],
+    ["Portrait", t("orientationPortrait")],
+    ["Landscape", t("orientationLandscape")],
+    ["Automatic", t("orientationAutomatic")],
   ]) {
     orientation.append(el("option", { value, text }));
   }
@@ -97,20 +125,20 @@ function buildRow({ key, label }) {
 
   const duplex = el("select", { id: key + "_duplex" });
   for (const [value, text] of [
-    ["", "Off"],
-    ["long", "Long edge"],
-    ["short", "Short edge"],
+    ["", t("duplexOff")],
+    ["long", t("duplexLong")],
+    ["short", t("duplexShort")],
   ]) {
     duplex.append(el("option", { value, text }));
   }
   row.append(el("td", {}, [duplex]));
 
-  const testButton = el("button", { type: "button", text: "Test" });
+  const testButton = el("button", { type: "button", text: t("testButton") });
   testButton.addEventListener("click", () => testPrint(key, testButton));
   const drawerButton = el("button", {
     type: "button",
-    text: "Drawer",
-    title: "Open the cash drawer attached to this printer",
+    text: t("drawerButton"),
+    title: t("drawerTitle"),
   });
   drawerButton.addEventListener("click", () => kickDrawer(key, drawerButton));
   row.append(el("td", { class: "actions" }, [testButton, drawerButton]));
@@ -129,10 +157,13 @@ const fieldIds = () =>
 
 async function loadStatus() {
   const status = await window.olorin.getStatus();
+  strings = Locales.RENDERER_LOCALES[Locales.pickLocale(status.locale)];
   document.getElementById("status-line").textContent = status.running
-    ? `v${status.version} — listening on port ${status.port}`
-    : `v${status.version} — server not running`;
-  document.getElementById("options-path").textContent = `Settings file: ${status.optionsPath}`;
+    ? t("statusListening", { version: status.version, port: status.port })
+    : t("statusNotRunning", { version: status.version });
+  document.getElementById("options-path").textContent = t("optionsFile", {
+    path: status.optionsPath,
+  });
 }
 
 async function loadPrinters({ preserveSelections = false } = {}) {
@@ -140,7 +171,7 @@ async function loadPrinters({ preserveSelections = false } = {}) {
   for (const { key } of PRINTERS) {
     const select = document.getElementById(key);
     const previous = select.value;
-    select.replaceChildren(el("option", { value: "", text: "Select" }));
+    select.replaceChildren(el("option", { value: "", text: t("select") }));
     for (const printer of printers) {
       select.append(el("option", { value: printer.name, text: printer.name }));
     }
@@ -153,9 +184,9 @@ async function loadPrinters({ preserveSelections = false } = {}) {
 // Update the dimension column headers, placeholders, and input steps for the
 // active unit.
 function applyUnits() {
-  const abbrev = activeUnits === "mm" ? "mm" : "in";
+  const abbrev = t(activeUnits === "mm" ? "unitAbbrevMm" : "unitAbbrevIn");
   for (const th of document.querySelectorAll("th[data-dimension]")) {
-    th.textContent = `${th.dataset.dimension} (${abbrev})`;
+    th.textContent = `${t(th.dataset.dimension)} (${abbrev})`;
   }
   for (const id of fieldIds()) {
     if (isDimensionField(id)) {
@@ -227,7 +258,7 @@ async function testPrint(printerKey, button) {
   try {
     const result = await window.olorin.testPrint(printerKey);
     if (!result.success) {
-      alert(`Test print failed: ${result.error}`);
+      alert(t("testPrintFailed", { error: result.error }));
     }
   } finally {
     button.disabled = false;
@@ -239,7 +270,7 @@ async function kickDrawer(printerKey, button) {
   try {
     const result = await window.olorin.kickDrawer(printerKey);
     if (!result.success) {
-      alert(`Drawer kick failed: ${result.error}`);
+      alert(t("drawerKickFailed", { error: result.error }));
     }
   } finally {
     button.disabled = false;
@@ -251,7 +282,7 @@ let updateUrl = null;
 
 function showUpdateBanner({ version, url }) {
   updateUrl = url;
-  document.getElementById("update-banner-text").textContent = `Version ${version} available`;
+  document.getElementById("update-banner-text").textContent = t("updateAvailable", { version });
   document.getElementById("update-banner").classList.remove("hide");
 }
 
@@ -260,7 +291,7 @@ async function retryJob(jobTime, button) {
   try {
     const result = await window.olorin.retryJob(jobTime);
     if (!result.success) {
-      alert(`Retry failed: ${result.error}`);
+      alert(t("retryFailed", { error: result.error }));
     }
   } finally {
     button.disabled = false;
@@ -269,22 +300,16 @@ async function retryJob(jobTime, button) {
 
 function jobLine(job) {
   const time = new Date(job.time).toLocaleTimeString();
-  const what = job.type === "kick" ? "Drawer kick" : "Print";
+  const what = t(job.type === "kick" ? "jobKick" : "jobPrint");
   const item = el("li", { class: job.success ? "job-ok" : "job-failed" });
   item.textContent = job.success
-    ? `${time} — ${what} to ${job.printer}`
-    : `${time} — ${what} to ${job.printer} FAILED: ${job.error}`;
+    ? t("jobLineOk", { time, what, printer: job.printer })
+    : t("jobLineFailed", { time, what, printer: job.printer, error: job.error });
   if (job.legacy) {
-    item.append(
-      el("span", {
-        class: "tag-legacy",
-        text: "legacy client",
-        title: "Sent with the old device-name format; update the browser extension",
-      }),
-    );
+    item.append(el("span", { class: "tag-legacy", text: t("legacyTag"), title: t("legacyTitle") }));
   }
   if (!job.success) {
-    const retryButton = el("button", { type: "button", class: "retry", text: "Retry" });
+    const retryButton = el("button", { type: "button", class: "retry", text: t("retry") });
     retryButton.addEventListener("click", () => retryJob(job.time, retryButton));
     item.append(retryButton);
   }
@@ -304,6 +329,11 @@ function addJob(job) {
 }
 
 async function init() {
+  // Fetch the status first: it carries the OS locale, which must be known
+  // before any translated text (static or generated) is rendered.
+  await loadStatus();
+  applyTranslations();
+
   const tbody = document.querySelector("#printers tbody");
   for (const printer of PRINTERS) {
     tbody.append(buildRow(printer));
@@ -329,7 +359,6 @@ async function init() {
 
   window.olorin.onJob(addJob);
 
-  await loadStatus();
   await loadPrinters();
   await loadOptions();
   for (const job of (await window.olorin.getRecentJobs()).reverse()) {
