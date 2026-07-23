@@ -28,7 +28,9 @@ export default [
     },
   },
   {
-    files: ["src/renderer.js"],
+    // renderer.js is a browser script; units.js is dual-environment (browser
+    // <script> and CommonJS for tests) so it needs both global sets.
+    files: ["src/renderer.js", "src/units.js"],
     languageOptions: {
       globals: {
         ...globals.browser,
