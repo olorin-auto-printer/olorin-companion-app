@@ -1,9 +1,10 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require("electron");
 const path = require("path");
 const log = require("electron-log/main");
 const { updateElectronApp } = require("update-electron-app");
 
 const { version } = require("../package.json");
+const { compareVersions } = require("./version-compare");
 const { createOptionsStore } = require("./options-store");
 const { createRouter } = require("./router");
 const { startServer, isOriginAllowed, DEFAULT_PORT } = require("./server");
@@ -41,6 +42,49 @@ if (app.isPackaged && (process.platform === "win32" || process.platform === "dar
 
 let mainWindow;
 let tray; // eslint-disable-line no-unused-vars -- keeps the Tray from being garbage collected
+
+// Send an IPC event to the main window, waiting for the page to finish
+// loading if the event races the initial load.
+function sendToWindow(channel, payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  const send = () => mainWindow.webContents.send(channel, payload);
+  if (mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once("did-finish-load", send);
+  } else {
+    send();
+  }
+}
+
+// Linux has no auto-updater (updateElectronApp covers Windows/macOS only), so
+// packaged Linux builds just tell the user when a newer release exists. Any
+// failure is logged and swallowed — printing must not care.
+const RELEASES_URL_PREFIX = "https://github.com/olorin-auto-printer/";
+const LATEST_RELEASE_API_URL =
+  "https://api.github.com/repos/olorin-auto-printer/olorin-companion-app/releases/latest";
+
+async function checkForLinuxUpdate() {
+  try {
+    const response = await fetch(LATEST_RELEASE_API_URL, {
+      headers: { Accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const release = await response.json();
+    const latest = String(release.tag_name || "").replace(/^v/, "");
+    if (latest && compareVersions(latest, version) > 0) {
+      const url =
+        release.html_url || `${RELEASES_URL_PREFIX}olorin-companion-app/releases/tag/v${latest}`;
+      log.info(`Update available: ${latest} (running ${version})`);
+      sendToWindow("olorin:update-available", { version: latest, url });
+    }
+  } catch (error) {
+    log.warn("Update check failed:", error);
+  }
+}
 
 function toggleWindow() {
   if (!mainWindow) {
@@ -179,6 +223,14 @@ async function initialize() {
       return { success: false, error: error.message };
     }
   });
+  ipcMain.handle("olorin:open-release", (event, url) => {
+    // Only ever open our own GitHub release pages from the banner.
+    if (typeof url !== "string" || !url.startsWith(RELEASES_URL_PREFIX)) {
+      return { success: false, error: "Refusing to open a non-release URL" };
+    }
+    shell.openExternal(url);
+    return { success: true };
+  });
 
   try {
     const server = await startServer({
@@ -195,6 +247,10 @@ async function initialize() {
     );
     app.isQuitting = true;
     app.quit();
+  }
+
+  if (process.platform === "linux" && app.isPackaged) {
+    checkForLinuxUpdate();
   }
 }
 

@@ -121,6 +121,20 @@ button:disabled {
 .actions button {
   margin-left: 4px;
 }
+.banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #fff8e1;
+  border: 1px solid #f0c36d;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+.banner.hide {
+  display: none;
+}
 .toast {
   color: #2e7d32;
   font-weight: 600;

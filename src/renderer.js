@@ -246,6 +246,15 @@ async function kickDrawer(printerKey, button) {
   }
 }
 
+// Update banner (Linux packaged builds; other platforms auto-update).
+let updateUrl = null;
+
+function showUpdateBanner({ version, url }) {
+  updateUrl = url;
+  document.getElementById("update-banner-text").textContent = `Version ${version} available`;
+  document.getElementById("update-banner").classList.remove("hide");
+}
+
 function jobLine(job) {
   const time = new Date(job.time).toLocaleTimeString();
   const what = job.type === "kick" ? "Drawer kick" : "Print";
@@ -281,6 +290,15 @@ async function init() {
   document.getElementById("units").addEventListener("change", (event) => {
     setUnits(event.target.value);
   });
+  document.getElementById("update-download").addEventListener("click", () => {
+    if (updateUrl) {
+      window.olorin.openReleasePage(updateUrl);
+    }
+  });
+  document.getElementById("update-dismiss").addEventListener("click", () => {
+    document.getElementById("update-banner").classList.add("hide");
+  });
+  window.olorin.onUpdateAvailable(showUpdateBanner);
 
   window.olorin.onJob(addJob);
 
