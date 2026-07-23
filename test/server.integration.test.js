@@ -10,6 +10,7 @@ import { createPrintPipeline } from "../src/print-pipeline";
 // and print pipeline wired to fakes for everything Electron-specific.
 describe("server integration", () => {
   let server;
+  let pipeline;
   let savedOptions;
   let printedJobs;
   let kickedJobs;
@@ -35,7 +36,7 @@ describe("server integration", () => {
       { name: "Fake_Label_Printer", displayName: "Fake Label Printer" },
     ]);
 
-    const pipeline = createPrintPipeline({
+    pipeline = createPrintPipeline({
       optionsStore,
       listPrinters,
       renderToPdf: async (html, pdfOptions) => {
@@ -52,7 +53,7 @@ describe("server integration", () => {
       },
       tempDir: os.tmpdir(),
       notify: (n) => notifications.push(n),
-      logger: { error: () => {} },
+      logger: { error: () => {}, warn: () => {} },
     });
 
     const router = createRouter({
@@ -202,6 +203,67 @@ describe("server integration", () => {
     expect(response.success).toBe(true);
     expect(printedJobs[0].copies).toBe(2);
     expect(printedJobs[0].duplex).toBe("long");
+  });
+
+  it("retains the message payload on failed job records only", async () => {
+    const ok = await request({
+      id: "print",
+      text: "printer-command",
+      content: "<p>works</p>",
+      printer: "receipt_printer",
+    });
+    expect(ok.success).toBe(true);
+
+    const failed = await request({
+      id: "print",
+      text: "printer-command",
+      content: "<p>broken</p>",
+      printer: "no_such_printer",
+    });
+    expect(failed.success).toBe(false);
+
+    const jobs = pipeline.getRecentJobs();
+    const okJob = jobs.find((job) => job.success);
+    const failedJob = jobs.find((job) => !job.success);
+    expect(okJob.message).toBeUndefined();
+    expect(failedJob.message).toMatchObject({
+      printer: "no_such_printer",
+      content: "<p>broken</p>",
+    });
+  });
+
+  it("retries a failed job once the printer mapping is fixed", async () => {
+    const response = await request({
+      id: "print",
+      text: "printer-command",
+      content: "<p>retry me</p>",
+      printer: "sticker_printer",
+    });
+    expect(response.success).toBe(false);
+    expect(printedJobs).toHaveLength(0);
+
+    const failedJob = pipeline.getRecentJobs().find((job) => !job.success);
+    savedOptions = { ...savedOptions, sticker_printer: "Fake Receipt Printer" };
+
+    const result = await pipeline.retryJob(failedJob.time);
+    expect(result.printer).toBe("Fake Receipt Printer");
+    expect(printedJobs).toHaveLength(1);
+    expect(renderedCalls.at(-1).html).toBe("<p>retry me</p>");
+
+    // The retry produced a fresh, successful record at the head of the log.
+    expect(pipeline.getRecentJobs()[0]).toMatchObject({ type: "print", success: true });
+  });
+
+  it("rejects a retry for a job that never failed", async () => {
+    await request({
+      id: "print",
+      text: "printer-command",
+      content: "<p>fine</p>",
+      printer: "receipt_printer",
+    });
+    const okJob = pipeline.getRecentJobs().find((job) => job.success);
+    await expect(pipeline.retryJob(okJob.time)).rejects.toThrow(/No matching failed job/);
+    await expect(pipeline.retryJob(-1)).rejects.toThrow(/No matching failed job/);
   });
 
   it("round-trips options through set-options and get-options", async () => {

@@ -107,6 +107,15 @@ function getPrinterQueryWindow() {
   return { window: new BrowserWindow({ show: false }), temporary: true };
 }
 
+// Failed job records retain the original message payload for retries; that
+// payload stays in the main process — strip it from anything sent to the
+// renderer.
+function toRendererJob(job) {
+  const copy = { ...job };
+  delete copy.message;
+  return copy;
+}
+
 function testSlipHtml(printerKey) {
   return (
     "<html><body style='font-family: sans-serif'>" +
@@ -168,7 +177,7 @@ async function initialize() {
     notify,
     onJob: (job) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("olorin:job", job);
+        mainWindow.webContents.send("olorin:job", toRendererJob(job));
       }
     },
     logger,
@@ -203,7 +212,7 @@ async function initialize() {
     optionsStore.save(options);
     return { success: true };
   });
-  ipcMain.handle("olorin:get-recent-jobs", () => pipeline.getRecentJobs());
+  ipcMain.handle("olorin:get-recent-jobs", () => pipeline.getRecentJobs().map(toRendererJob));
   ipcMain.handle("olorin:test-print", async (event, printerKey) => {
     try {
       const result = await pipeline.print({
@@ -219,6 +228,22 @@ async function initialize() {
     try {
       const result = await pipeline.kickDrawer({ printer: printerKey });
       return { success: true, printer: result.printer };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("olorin:retry-job", async (event, jobTime) => {
+    try {
+      const result = await pipeline.retryJob(jobTime);
+      return { success: true, printer: result.printer };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("olorin:reveal-log", () => {
+    try {
+      shell.showItemInFolder(log.transports.file.getFile().path);
+      return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }

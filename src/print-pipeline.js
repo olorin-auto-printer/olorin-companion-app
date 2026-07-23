@@ -190,12 +190,16 @@ function createPrintPipeline({
         return result;
       } catch (error) {
         logger.error(`${type} failed:`, error);
+        // Failed records keep the original message so the job can be retried
+        // from the app window. Success records must not retain content —
+        // it would pin up to RECENT_JOB_LIMIT slips in memory for nothing.
         recordJob({
           time: Date.now(),
           type,
           printer: message.printer,
           success: false,
           error: error.message,
+          message,
         });
         notify({ body: `${type === "kick" ? "Drawer kick" : "Print"} failed: ${error.message}` });
         throw error;
@@ -208,9 +212,23 @@ function createPrintPipeline({
     return job;
   }
 
+  const print = (message) => enqueue("print", message, runPrintJob, { notifySuccess: true });
+  const kickDrawer = (message) => enqueue("kick", message, runKickJob, { notifySuccess: false });
+
+  // Re-dispatch a failed job identified by its record time. The retained
+  // message goes back through the normal queue, producing a new record.
+  function retryJob(jobTime) {
+    const record = recentJobs.find((job) => job.time === jobTime && !job.success && job.message);
+    if (!record) {
+      return Promise.reject(new PrintError("No matching failed job to retry"));
+    }
+    return record.type === "kick" ? kickDrawer(record.message) : print(record.message);
+  }
+
   return {
-    print: (message) => enqueue("print", message, runPrintJob, { notifySuccess: true }),
-    kickDrawer: (message) => enqueue("kick", message, runKickJob, { notifySuccess: false }),
+    print,
+    kickDrawer,
+    retryJob,
     getRecentJobs: () => [...recentJobs],
   };
 }

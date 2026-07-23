@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("olorin", {
   getRecentJobs: () => ipcRenderer.invoke("olorin:get-recent-jobs"),
   testPrint: (printerKey) => ipcRenderer.invoke("olorin:test-print", printerKey),
   kickDrawer: (printerKey) => ipcRenderer.invoke("olorin:kick-drawer", printerKey),
+  retryJob: (jobTime) => ipcRenderer.invoke("olorin:retry-job", jobTime),
+  revealLog: () => ipcRenderer.invoke("olorin:reveal-log"),
   openReleasePage: (url) => ipcRenderer.invoke("olorin:open-release", url),
   onJob: (callback) => {
     ipcRenderer.on("olorin:job", (event, job) => callback(job));

@@ -154,6 +154,14 @@ button:disabled {
   padding: 3px 0;
   border-bottom: 1px solid #f0f0f0;
 }
+#jobs .retry {
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.header-right {
+  text-align: right;
+}
 .job-ok {
   color: #2e7d32;
 }

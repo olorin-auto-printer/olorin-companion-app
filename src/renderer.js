@@ -255,6 +255,18 @@ function showUpdateBanner({ version, url }) {
   document.getElementById("update-banner").classList.remove("hide");
 }
 
+async function retryJob(jobTime, button) {
+  button.disabled = true;
+  try {
+    const result = await window.olorin.retryJob(jobTime);
+    if (!result.success) {
+      alert(`Retry failed: ${result.error}`);
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function jobLine(job) {
   const time = new Date(job.time).toLocaleTimeString();
   const what = job.type === "kick" ? "Drawer kick" : "Print";
@@ -262,6 +274,11 @@ function jobLine(job) {
   item.textContent = job.success
     ? `${time} — ${what} to ${job.printer}`
     : `${time} — ${what} to ${job.printer} FAILED: ${job.error}`;
+  if (!job.success) {
+    const retryButton = el("button", { type: "button", class: "retry", text: "Retry" });
+    retryButton.addEventListener("click", () => retryJob(job.time, retryButton));
+    item.append(retryButton);
+  }
   return item;
 }
 
@@ -299,6 +316,7 @@ async function init() {
     document.getElementById("update-banner").classList.add("hide");
   });
   window.olorin.onUpdateAvailable(showUpdateBanner);
+  document.getElementById("reveal-log").addEventListener("click", () => window.olorin.revealLog());
 
   window.olorin.onJob(addJob);
 
