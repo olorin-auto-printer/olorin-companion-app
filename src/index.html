@@ -17,7 +17,12 @@
     <section>
       <div class="section-head">
         <h2>Printers</h2>
-        <div>
+        <div class="section-tools">
+          <label for="units">Units</label>
+          <select id="units">
+            <option value="in">Inches</option>
+            <option value="mm">Millimeters</option>
+          </select>
           <button id="refresh" type="button">Refresh Printers</button>
           <button id="save" type="button" class="primary">Save</button>
           <span id="save-msg" class="toast hide">Saved</span>
@@ -25,20 +30,21 @@
       </div>
       <p class="muted">
         Web pages (Koha slips, for example) pick one of these five printer types; map each one you
-        use to a real printer. Sizes and margins are in inches. These are the same settings the
-        browser extension edits.
+        use to a real printer. Sizes and margins are in the selected unit. These are the same
+        settings the browser extension edits.
       </p>
       <table id="printers">
         <thead>
           <tr>
             <th>Printer</th>
             <th>Device</th>
-            <th>Width</th>
-            <th>Height</th>
-            <th>Top</th>
-            <th>Bottom</th>
-            <th>Left</th>
-            <th>Right</th>
+            <th></th>
+            <th data-dimension="Width">Width</th>
+            <th data-dimension="Height">Height</th>
+            <th data-dimension="Top">Top</th>
+            <th data-dimension="Bottom">Bottom</th>
+            <th data-dimension="Left">Left</th>
+            <th data-dimension="Right">Right</th>
             <th>Orientation</th>
             <th>Copies</th>
             <th>Duplex</th>
@@ -69,6 +75,7 @@
       </ul>
     </section>
 
+    <script src="units.js"></script>
     <script src="renderer.js"></script>
   </body>
 </html>

@@ -51,6 +51,14 @@ section {
   justify-content: space-between;
   align-items: center;
 }
+.section-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-tools select {
+  width: auto;
+}
 table {
   width: 100%;
   border-collapse: collapse;

@@ -19,6 +19,15 @@ const NUMBER_FIELDS = [
   ["_margin_right", "Right"],
 ];
 
+const Units = window.OlorinUnits;
+
+// All six number fields are dimensions; stored values are always inches, the
+// fields display the active unit ("in" or "mm", persisted as options.units).
+const DIMENSION_SUFFIXES = NUMBER_FIELDS.map(([suffix]) => suffix);
+const isDimensionField = (id) => DIMENSION_SUFFIXES.some((suffix) => id.endsWith(suffix));
+
+let activeUnits = "in";
+
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [name, value] of Object.entries(attrs)) {
@@ -34,6 +43,18 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+// Fill the width/height fields from a preset, converted to the active unit.
+// Only the fields change — nothing is saved until the Save button.
+function applyPreset(key, select) {
+  const preset = Units.getPreset(select.value);
+  select.value = "";
+  if (!preset) {
+    return;
+  }
+  document.getElementById(key + "_width").value = Units.toDisplay(preset.width, activeUnits);
+  document.getElementById(key + "_height").value = Units.toDisplay(preset.height, activeUnits);
+}
+
 function buildRow({ key, label }) {
   const row = el("tr");
 
@@ -42,6 +63,14 @@ function buildRow({ key, label }) {
   const device = el("select", { id: key });
   device.append(el("option", { value: "", text: "Select" }));
   row.append(el("td", {}, [device]));
+
+  const preset = el("select", { id: key + "_preset", class: "preset" });
+  preset.append(el("option", { value: "", text: "Presets…" }));
+  for (const { id, label: presetLabel } of Units.PAPER_PRESETS) {
+    preset.append(el("option", { value: id, text: presetLabel }));
+  }
+  preset.addEventListener("change", () => applyPreset(key, preset));
+  row.append(el("td", {}, [preset]));
 
   for (const [suffix] of NUMBER_FIELDS) {
     row.append(
@@ -121,13 +150,48 @@ async function loadPrinters({ preserveSelections = false } = {}) {
   }
 }
 
+// Update the dimension column headers, placeholders, and input steps for the
+// active unit.
+function applyUnits() {
+  const abbrev = activeUnits === "mm" ? "mm" : "in";
+  for (const th of document.querySelectorAll("th[data-dimension]")) {
+    th.textContent = `${th.dataset.dimension} (${abbrev})`;
+  }
+  for (const id of fieldIds()) {
+    if (isDimensionField(id)) {
+      const field = document.getElementById(id);
+      field.placeholder = abbrev;
+      field.step = activeUnits === "mm" ? "0.1" : "0.01";
+    }
+  }
+}
+
+// Convert the displayed dimension values in place when the unit changes.
+// The stored file keeps inches and is only rewritten on Save.
+function setUnits(next) {
+  if (next === activeUnits) {
+    return;
+  }
+  for (const id of fieldIds()) {
+    if (isDimensionField(id)) {
+      const field = document.getElementById(id);
+      field.value = Units.toDisplay(Units.toStored(field.value, activeUnits), next);
+    }
+  }
+  activeUnits = next;
+  applyUnits();
+}
+
 async function loadOptions() {
   const options = await window.olorin.getOptions();
+  activeUnits = options.units === "mm" ? "mm" : "in";
+  document.getElementById("units").value = activeUnits;
+  applyUnits();
   for (const id of fieldIds()) {
     const field = document.getElementById(id);
     const value = options[id];
     if (field && value !== undefined && value !== null) {
-      field.value = value;
+      field.value = isDimensionField(id) ? Units.toDisplay(value, activeUnits) : value;
     }
   }
   const origins = Array.isArray(options.allowed_origins) ? options.allowed_origins : [];
@@ -137,8 +201,10 @@ async function loadOptions() {
 async function save() {
   const options = {};
   for (const id of fieldIds()) {
-    options[id] = document.getElementById(id).value;
+    const raw = document.getElementById(id).value;
+    options[id] = isDimensionField(id) ? Units.toStored(raw, activeUnits) : raw;
   }
+  options.units = activeUnits;
 
   const origins = document
     .getElementById("allowed-origins")
@@ -212,6 +278,9 @@ async function init() {
   document
     .getElementById("refresh")
     .addEventListener("click", () => loadPrinters({ preserveSelections: true }));
+  document.getElementById("units").addEventListener("change", (event) => {
+    setUnits(event.target.value);
+  });
 
   window.olorin.onJob(addJob);
 
