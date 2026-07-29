@@ -37,7 +37,7 @@ jobs:
       # them the build stays unsigned exactly as before.
       - name: Import the Developer ID certificate
         if: runner.os == 'macOS' && env.HAS_APPLE_CERT == 'true'
-        uses: apple-actions/import-codesign-certs@v3
+        uses: apple-actions/import-codesign-certs@v7
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
